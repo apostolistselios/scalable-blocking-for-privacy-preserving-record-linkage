@@ -3,4 +3,6 @@ remotedebug.xml
 .classpath
 .project
 .settings
+.idea/
+*.iml
 /target
