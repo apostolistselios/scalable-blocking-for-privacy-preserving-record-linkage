@@ -62,8 +62,8 @@ public class Simulator {
 		
 		System.out.println(count);
 		
-//		Scanner myscanner = new Scanner(System.in); 
-//		myscanner.nextLine(); 
+		Scanner myscanner = new Scanner(System.in); 
+		myscanner.nextLine(); 
 	
 		sc.close();
 		
