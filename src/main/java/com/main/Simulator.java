@@ -13,7 +13,7 @@ public class Simulator {
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
 		
-		Logger.getLogger("org.apache").setLevel(Level.WARN);
+		
 		List<List<String>> input = new ArrayList<List<String>>();
 		
 		List<String> s1 = Arrays.asList("anthony", "lawrence", "victor", "zoe") ; 
@@ -27,7 +27,7 @@ public class Simulator {
 		input.add(Arrays.asList("b1", "kevin", "anderson", "warsaw"));
 		input.add(Arrays.asList("b2", "anne", "cobb", "london"));
 
-		SparkConf conf = new SparkConf().setAppName("startingSpark").setMaster("local[*]"); 
+		SparkConf conf = new SparkConf().setAppName("startingSpark"); 
 		JavaSparkContext sc = new JavaSparkContext(conf); 
 		
 		JavaRDD<List<String>> inputRDD = sc.parallelize(input) ; 
