@@ -40,7 +40,7 @@ public class Simulator {
 		input.add(Arrays.asList("b1", "kevin", "anderson", "warsaw"));
 		input.add(Arrays.asList("b2", "anne", "cobb", "london"));
 
-		SparkConf conf = new SparkConf().setAppName("startingSpark").setMaster("local");
+		SparkConf conf = new SparkConf().setAppName("startingSpark").setMaster("local[*]");
 		JavaSparkContext sc = new JavaSparkContext(conf);
 
 		JavaRDD<List<String>> inputRDD = sc.parallelize(input);
@@ -136,12 +136,12 @@ public class Simulator {
   
             // If the element is present at the 
             // middle itself 
-            if (arr.get(mid).equals(x) ) 
+            if (arr.get(mid).substring(0,3).equals(x.substring(0,3)) ) 
                 return mid; 
   
             // If element is smaller than mid, then 
             // it can only be present in left subarray 
-            if (arr.get(mid).compareTo(x) > 0 ) 
+            if (arr.get(mid).substring(0,3).compareTo(x.substring(0,3)) > 0 ) 
                 return binarySearch(arr, l, mid - 1, x); 
   
             // Else the element can only be present 
