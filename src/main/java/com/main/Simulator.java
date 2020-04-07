@@ -71,7 +71,9 @@ public class Simulator {
 		
 		JavaPairRDD<String, List<String>> classifiedRDD = name_classifiedRDD.union(last_name_classifiedRDD.union(city_classifiedRDD)) ;
 
-		List<Tuple2<String, List<String>>> results = classifiedRDD.collect();
+		List<Tuple2<String, Iterable<List<String>>>> results = classifiedRDD.groupByKey().collect(); // must implement reduceByKey() not groupByKey
+		
+		
 
 		results.forEach(System.out::println);
 
@@ -107,9 +109,9 @@ public class Simulator {
 			int pos;
 	
 
-			pos = binarySearch(rs,0,rs.size()-1, ba)  ;// should implement binary search on prefixes here to work 
+			pos = binarySearch(rs,0,rs.size()-1, ba,false)  ;// should implement binary search on prefixes here to work 
 		
-//			System.out.println(ba + " " + pos);
+		
 			 int d1 = 1000000 ;
 			 if (pos -1 > 0 ) { 
 				 d1 = LevenshteinDistance.getDefaultInstance().apply(ba, rs.get(pos-1)) ; 
@@ -117,11 +119,13 @@ public class Simulator {
 			 
 			 int d2 = LevenshteinDistance.getDefaultInstance().apply(ba,rs.get(pos)) ;
 			 
-			 if (d1 < d2 ) { 
+			 if (d1 <= d2 ) { 
 				 c = "S" + rsnum + "." + Integer.toString(pos) ; //(pos-1) +1 
 			} 			 
 			 else c ="S" + rsnum + "." + Integer.toString(pos+1) ; // (pos) + 1
 			
+			 if (ba == "london")
+				 System.out.println();
 
 
 			return Arrays.asList(ba, c);
@@ -129,32 +133,45 @@ public class Simulator {
 
 	}
 	
-    public static int binarySearch(List<String> arr, int l, int r, String x) 
+    public static int binarySearch(List<String> arr, int l, int r, String x , boolean left) 
     { 
+
         if (r >= l) { 
-            int mid = l + (r - l) / 2; 
+            int mid = l +(int) Math.ceil((double) (r -1) / (double) 2 ) ;
   
             // If the element is present at the 
             // middle itself 
             if (arr.get(mid).substring(0,3).equals(x.substring(0,3)) ) 
                 return mid; 
-  
+            
+           
             // If element is smaller than mid, then 
-            // it can only be present in left subarray 
-            if (arr.get(mid).substring(0,3).compareTo(x.substring(0,3)) > 0 ) 
-                return binarySearch(arr, l, mid - 1, x); 
-  
+            // it can only be present in right subarray 
+            if ( x.substring(0,3).compareTo(arr.get(mid).substring(0,3)) > 0  ) {
+                return binarySearch(arr, mid + 1, r, x,true); 
+            }
+            else if (mid == arr.size()-1) {
+            	if ( LevenshteinDistance.getDefaultInstance().apply(x.substring(0,3), arr.get(mid).substring(0,3)) > 
+            			LevenshteinDistance.getDefaultInstance().apply(x, arr.get(mid-1).substring(0,3)))
+            		return mid ;
+            	else 
+            		return mid -1 ;
+            }
+      
+            	
             // Else the element can only be present 
-            // in right subarray 
-            return binarySearch(arr, mid + 1, r, x); 
+            // in left subarray 
+           
+            
+            return binarySearch(arr, l, mid-1, x,false); 
         } 
   
         // We reach here when element is not present 
         // in array 
         if (r < 0) {return r +1  ;} 
-        else if (r >4) {return r-1 ; } 
-        else 
-        	return r ; 
+        else if (r >3) {return r-1 ; } 
+        else  return r  ; 
+	
     } 
 	
 	
