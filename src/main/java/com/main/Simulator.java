@@ -1,4 +1,4 @@
-package main;
+package com.main;
 
 
 import org.apache.commons.text.similarity.LevenshteinDistance;
