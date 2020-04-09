@@ -1,11 +1,13 @@
 package com.main;
 
 
+import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.text.similarity.LevenshteinDistance;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import scala.Array;
 import scala.Tuple2;
 
 import java.util.*;
@@ -23,10 +25,6 @@ public class Simulator {
         List<String> s1 = Arrays.asList("anthony", "lawrence", "victor", "zoe");
         List<String> s2 = Arrays.asList("alex", "dorothy", "jonathan", "naomi");
         List<String> s3 = Arrays.asList("alex", "john", "rhonda", "tristan");
-
-        Collections.sort(s1);
-        Collections.sort(s2);
-        Collections.sort(s3);
 
         // Alice's data
         input.add(Arrays.asList("a1", "nicholas", "smith", "madrid"));
@@ -65,10 +63,36 @@ public class Simulator {
 
         JavaPairRDD<String, List<String>> city_classifiedRDD = mapClassify(city_pairsRDD, s3, "3");
 
-        JavaPairRDD<String, List<String>> classifiedRDD = name_classifiedRDD.union(last_name_classifiedRDD.union(city_classifiedRDD)) ;
+        JavaPairRDD<String, Iterable<List<String>>> classifiedGroupedRDD = name_classifiedRDD.union(last_name_classifiedRDD.union(city_classifiedRDD)).groupByKey() ;
 
-        List<Tuple2<String, Iterable<List<String>>>> results = classifiedRDD.groupByKey().collect(); // must implement reduceByKey() not groupByKey
+        JavaPairRDD<String, String> blocksRDD = classifiedGroupedRDD.flatMapToPair( TuppleOfbas -> {
+            ArrayList<Tuple2<String,String>> blocks = new ArrayList<>() ;
 
+            Iterator<List<String>> it = TuppleOfbas._2().iterator() ;
+            List<String> currentBA= it.next();
+            List<String> firstBA = currentBA ; // keep first to combine it with the last
+            while(true){
+                List<String> nextBA ;
+                String block ;
+                if(it.hasNext()) {
+                    nextBA = it.next();
+                    block = currentBA.get(1) + "-" + nextBA.get(1);
+                    blocks.add(new Tuple2<String, String>(block,TuppleOfbas._1())) ;
+                    currentBA = nextBA ;
+                }
+                else {
+                    block = currentBA.get(1) + "-" + firstBA.get(1);
+                    blocks.add(new Tuple2<String, String>(block, TuppleOfbas._1()));
+                    break;
+                }
+
+            }
+
+            return blocks.iterator();
+        });
+
+
+        List<Tuple2<String, List<String>>> results = blocksRDD.groupByKey() ;
 
         results.forEach(System.out::println);
 
@@ -105,7 +129,7 @@ public class Simulator {
             pos = binarySearch(rs,0,rs.size()-1, ba)  ;// should implement binary search on prefixes here to work
 
 
-            int d1 = 1000000 ;
+            int d1 = 10 ^ 6  ;
             if (pos -1 > 0 ) {
                 d1 = LevenshteinDistance.getDefaultInstance().apply(ba, rs.get(pos-1)) ;
             }
@@ -122,11 +146,11 @@ public class Simulator {
 
     }
 
-    public static int binarySearch(List<String> arr, int l, int r, String x)
+    public static int binarySearch(List<String> arr, int low, int high, String x)
     {
 
-        if (r >= l) {
-            int mid = l +(int) Math.ceil((double) (r -1) / (double) 2 ) ;
+        if (high >= low) {
+            int mid = low +(int) Math.ceil((double) (high - low ) / (double) 2 ) ;
 
             // If the element is present at the
             // middle itself
@@ -137,14 +161,10 @@ public class Simulator {
             // If element is smaller than mid, then
             // it can only be present in right subarray
             if ( x.substring(0,3).compareTo(arr.get(mid).substring(0,3)) > 0  ) {
-                return binarySearch(arr, mid + 1, r, x);
+                return binarySearch(arr, mid + 1, high, x);
             }
             else if (mid == arr.size()-1) {
-                if ( LevenshteinDistance.getDefaultInstance().apply(x.substring(0,3), arr.get(mid).substring(0,3)) >
-                        LevenshteinDistance.getDefaultInstance().apply(x, arr.get(mid-1).substring(0,3)))
-                    return mid ;
-                else
-                    return mid -1 ;
+                return mid;
             }
 
 
@@ -152,14 +172,14 @@ public class Simulator {
             // in left subarray
 
 
-            return binarySearch(arr, l, mid-1, x);
+            return binarySearch(arr, low, mid-1, x);
         }
 
         // We reach here when element is not present
         // in array
-        if (r < 0) {return r +1  ;}
-        else if (r >3) {return r-1 ; }
-        else  return r  ;
+        if (high < 0) {return high +1  ;}
+        else if (high >3) {return high-1 ; }
+        else  return high  ;
 
     }
 
