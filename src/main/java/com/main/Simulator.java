@@ -1,13 +1,11 @@
 package com.main;
 
 
-import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.text.similarity.LevenshteinDistance;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
-import scala.Array;
 import scala.Tuple2;
 
 import java.util.*;
@@ -17,7 +15,9 @@ import org.apache.log4j.Logger;
 public class Simulator {
 
     public static void main(String[] args) {
-        // TODO Auto-generated method stub
+
+
+        //TODO  Implement with different inputs for Alice and Bob and merge them !!!
 
         Logger.getLogger("org.apache").setLevel(Level.WARN);
         List<List<String>> input = new ArrayList<>();
@@ -34,7 +34,7 @@ public class Simulator {
         input.add(Arrays.asList("b1", "kevin", "anderson", "warsaw"));
         input.add(Arrays.asList("b2", "anne", "cobb", "london"));
 
-        SparkConf conf = new SparkConf().setAppName("startingSpark").setMaster("local[*]");
+        SparkConf conf = new SparkConf().setAppName("startingSpark");
         JavaSparkContext sc = new JavaSparkContext(conf);
 
         JavaRDD<List<String>> inputRDD = sc.parallelize(input);
@@ -65,36 +65,26 @@ public class Simulator {
 
         JavaPairRDD<String, Iterable<List<String>>> classifiedGroupedRDD = name_classifiedRDD.union(last_name_classifiedRDD.union(city_classifiedRDD)).groupByKey() ;
 
-        JavaPairRDD<String, String> blocksRDD = classifiedGroupedRDD.flatMapToPair( TuppleOfbas -> {
-            ArrayList<Tuple2<String,String>> blocks = new ArrayList<>() ;
+        JavaPairRDD<String, String> blocksRDD = classifiedGroupedRDD.flatMapToPair(Simulator::combineBlocks);
 
-            Iterator<List<String>> it = TuppleOfbas._2().iterator() ;
-            List<String> currentBA= it.next();
-            List<String> firstBA = currentBA ; // keep first to combine it with the last
-            while(true){
-                List<String> nextBA ;
-                String block ;
-                if(it.hasNext()) {
-                    nextBA = it.next();
-                    block = currentBA.get(1) + "-" + nextBA.get(1);
-                    blocks.add(new Tuple2<String, String>(block,TuppleOfbas._1())) ;
-                    currentBA = nextBA ;
-                }
-                else {
-                    block = currentBA.get(1) + "-" + firstBA.get(1);
-                    blocks.add(new Tuple2<String, String>(block, TuppleOfbas._1()));
-                    break;
-                }
 
+        JavaPairRDD<String, Iterable<String>> results = blocksRDD.groupByKey().filter(block -> {
+            boolean sourceA = false ;
+            boolean sourceB = false ;
+
+            for(String recordID : block._2()){
+                if(recordID.contains("a")){
+                    sourceA = true ;
+                }else if(recordID.contains("b"))
+                    sourceB = true ;
             }
 
-            return blocks.iterator();
+            return sourceA && sourceB ;
         });
 
 
-        List<Tuple2<String, List<String>>> results = blocksRDD.groupByKey() ;
 
-        results.forEach(System.out::println);
+        results.collect().forEach(System.out::println);
 
         /*
          * JavaPairRDD<String,String> resultsRDD = sc.parallelizePairs(results) ;
@@ -184,6 +174,28 @@ public class Simulator {
     }
 
 
+    private static Iterator<Tuple2<String, String>> combineBlocks(Tuple2<String, Iterable<List<String>>> TuppleOfbas) {
+        ArrayList<Tuple2<String, String>> blocks = new ArrayList<>();
 
+        Iterator<List<String>> it = TuppleOfbas._2().iterator();
+        List<String> currentBA = it.next();
+        List<String> firstBA = currentBA; // keep first to combine it with the last
+        while (true) {
+            List<String> nextBA;
+            String block;
+            if (it.hasNext()) {
+                nextBA = it.next();
+                block = currentBA.get(1) + "-" + nextBA.get(1);
+                blocks.add(new Tuple2<>(block, TuppleOfbas._1()));
+                currentBA = nextBA;
+            } else {
+                block = currentBA.get(1) + "-" + firstBA.get(1);
+                blocks.add(new Tuple2<>(block, TuppleOfbas._1()));
+                break;
+            }
 
+        }
+
+        return blocks.iterator();
+    }
 }
