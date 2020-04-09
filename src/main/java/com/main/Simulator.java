@@ -1,11 +1,13 @@
 package com.main;
 
 
+import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.text.similarity.LevenshteinDistance;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import scala.Array;
 import scala.Tuple2;
 
 import java.util.*;
@@ -24,10 +26,6 @@ public class Simulator {
         List<String> s2 = Arrays.asList("alex", "dorothy", "jonathan", "naomi");
         List<String> s3 = Arrays.asList("alex", "john", "rhonda", "tristan");
 
-        Collections.sort(s1);
-        Collections.sort(s2);
-        Collections.sort(s3);
-
         // Alice's data
         input.add(Arrays.asList("a1", "nicholas", "smith", "madrid"));
         input.add(Arrays.asList("a2", "ann", "cobb", "london"));
@@ -36,7 +34,7 @@ public class Simulator {
         input.add(Arrays.asList("b1", "kevin", "anderson", "warsaw"));
         input.add(Arrays.asList("b2", "anne", "cobb", "london"));
 
-        SparkConf conf = new SparkConf().setAppName("startingSpark");
+        SparkConf conf = new SparkConf().setAppName("startingSpark").setMaster("local[*]");
         JavaSparkContext sc = new JavaSparkContext(conf);
 
         JavaRDD<List<String>> inputRDD = sc.parallelize(input);
@@ -65,10 +63,36 @@ public class Simulator {
 
         JavaPairRDD<String, List<String>> city_classifiedRDD = mapClassify(city_pairsRDD, s3, "3");
 
-        JavaPairRDD<String, List<String>> classifiedRDD = name_classifiedRDD.union(last_name_classifiedRDD.union(city_classifiedRDD)) ;
+        JavaPairRDD<String, Iterable<List<String>>> classifiedGroupedRDD = name_classifiedRDD.union(last_name_classifiedRDD.union(city_classifiedRDD)).groupByKey() ;
 
-        List<Tuple2<String, Iterable<List<String>>>> results = classifiedRDD.groupByKey().collect(); // not groupByKey
+        JavaPairRDD<String, String> blocksRDD = classifiedGroupedRDD.flatMapToPair( TuppleOfbas -> {
+            ArrayList<Tuple2<String,String>> blocks = new ArrayList<>() ;
 
+            Iterator<List<String>> it = TuppleOfbas._2().iterator() ;
+            List<String> currentBA= it.next();
+            List<String> firstBA = currentBA ; // keep first to combine it with the last
+            while(true){
+                List<String> nextBA ;
+                String block ;
+                if(it.hasNext()) {
+                    nextBA = it.next();
+                    block = currentBA.get(1) + "-" + nextBA.get(1);
+                    blocks.add(new Tuple2<String, String>(block,TuppleOfbas._1())) ;
+                    currentBA = nextBA ;
+                }
+                else {
+                    block = currentBA.get(1) + "-" + firstBA.get(1);
+                    blocks.add(new Tuple2<String, String>(block, TuppleOfbas._1()));
+                    break;
+                }
+
+            }
+
+            return blocks.iterator();
+        });
+
+
+        List<Tuple2<String, List<String>>> results = blocksRDD.groupByKey() ;
 
         results.forEach(System.out::println);
 
@@ -105,7 +129,7 @@ public class Simulator {
             pos = binarySearch(rs,0,rs.size()-1, ba)  ;// should implement binary search on prefixes here to work
 
 
-            int d1 = 1000000 ;
+            int d1 = 10 ^ 6  ;
             if (pos -1 > 0 ) {
                 d1 = LevenshteinDistance.getDefaultInstance().apply(ba, rs.get(pos-1)) ;
             }
