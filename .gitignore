@@ -5,3 +5,4 @@ remotedebug.xml
 .idea/
 *.iml
 /target
+*.sqlite
