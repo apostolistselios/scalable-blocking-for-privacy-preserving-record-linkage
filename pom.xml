@@ -18,7 +18,7 @@
             <artifactId>jdk.tools</artifactId>
             <version>1.8.0_241</version>
             <scope>system</scope>
-            <systemPath>C:/Program Files/Java/java-se-8u41-ri/lib/tools.jar</systemPath>
+            <systemPath>${java.home}/../lib/tools.jar</systemPath>
         </dependency>
 
 
@@ -32,6 +32,13 @@
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-core_2.12</artifactId>
             <version>2.4.5</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.spark</groupId>
+            <artifactId>spark-sql_2.12</artifactId>
+            <version>2.4.5</version>
+            <scope>provided</scope>
         </dependency>
 
         <dependency>
