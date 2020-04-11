@@ -6,3 +6,4 @@ remotedebug.xml
 *.iml
 /target
 *.sqlite
+*.db
