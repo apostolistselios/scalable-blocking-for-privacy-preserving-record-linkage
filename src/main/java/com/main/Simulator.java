@@ -12,6 +12,8 @@ import java.util.*;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 
+import com.algorithms.BlockingAlgorithm.*;
+
 public class Simulator {
 
     public static void main(String[] args) {
@@ -20,25 +22,25 @@ public class Simulator {
         //TODO  Implement with different inputs for Alice and Bob and merge them !!!
 
         Logger.getLogger("org.apache").setLevel(Level.WARN);
-        List<List<String>> input = new ArrayList<>();
-
+        List<List<String>> Alice_DB = new ArrayList<>();
+        List<List<String>> Bob_DB = new ArrayList<>();
         List<String> s1 = Arrays.asList("anthony", "lawrence", "victor", "zoe");
         List<String> s2 = Arrays.asList("alex", "dorothy", "jonathan", "naomi");
         List<String> s3 = Arrays.asList("alex", "john", "rhonda", "tristan");
-
+        List<List<String>> ReferenceSets = Arrays.asList(s1,s2,s3);
         // Alice's data
-        input.add(Arrays.asList("a1", "nicholas", "smith", "madrid"));
-        input.add(Arrays.asList("a2", "ann", "cobb", "london"));
+        Alice_DB.add(Arrays.asList("a1", "nicholas", "smith", "madrid"));
+        Alice_DB.add(Arrays.asList("a2", "ann", "cobb", "london"));
 
         // Bob's data
-        input.add(Arrays.asList("b1", "kevin", "anderson", "warsaw"));
-        input.add(Arrays.asList("b2", "anne", "cobb", "london"));
+        Bob_DB.add(Arrays.asList("b1", "kevin", "anderson", "warsaw"));
+        Bob_DB.add(Arrays.asList("b2", "anne", "cobb", "london"));
 
         SparkConf conf = new SparkConf().setAppName("startingSpark");
         JavaSparkContext sc = new JavaSparkContext(conf);
 
-        JavaRDD<List<String>> inputRDD = sc.parallelize(input);
-
+        JavaRDD<List<String>> AlicesRDD = sc.parallelize(Alice_DB);
+        JavaRDD<List<String>> BobsRDD = sc.parallelize(Bob_DB);
         /*
          * JavaPairRDD<String, String> pairsRDD = inputRDD.flatMapToPair( x -> {
          * List<Tuple2<String, String>> pairs = new ArrayList() ;
@@ -48,25 +50,34 @@ public class Simulator {
          *
          * }) ;
          */
+        // Add all Alice's RDDs created in a list name_pairsRDD, last_nameRDD, etc.
 
-        JavaPairRDD<String, String> name_pairsRDD = mapBlockingAttributes(inputRDD, 1);
+        ArrayList<JavaPairRDD<String, String>> AliceRDDs = new ArrayList<JavaPairRDD<String, String>>();
+        for (int i = 1; i<=3; i++)
+            AliceRDDs.add(mapBlockingAttributes(AlicesRDD, i));
 
-        JavaPairRDD<String, String> last_name_pairsRDD = mapBlockingAttributes(inputRDD, 2);
+        ArrayList<JavaPairRDD<String, String>> BobRDDs = new ArrayList<JavaPairRDD<String, String>>();
+        for (int i = 1; i<=3; i++)
+            BobRDDs.add(mapBlockingAttributes(BobsRDD, i));
 
-        JavaPairRDD<String, String> city_pairsRDD = mapBlockingAttributes(inputRDD, 3);
 
-//		JavaPairRDD<String, String> pairsRDD = name_pairsRDD.union(last_name_pairsRDD.union(city_pairsRDD)) ;
+        // classify for each
+        // get the name_pairsRDD,last_nameRDD, etc. and classify it respectively with 1st reference set, 2nd, etc and add it into an ArrayList.
+        ArrayList<JavaPairRDD<String, List<String>>> ClassifiedAlicesRDDs = new ArrayList<JavaPairRDD<String, List<String>>>();
+        for (int i = 1; i<=3; i++)
+            ClassifiedAlicesRDDs.add(mapClassify(AliceRDDs.get(i-1),ReferenceSets.get(i-1) , String.valueOf(i)));
 
-        JavaPairRDD<String, List<String>> name_classifiedRDD = mapClassify(name_pairsRDD, s1, "1");
+        ArrayList<JavaPairRDD<String, List<String>>> ClassifiedBobsRDDs = new ArrayList<JavaPairRDD<String, List<String>>>();
 
-        JavaPairRDD<String, List<String>> last_name_classifiedRDD = mapClassify(last_name_pairsRDD, s2, "2");
+        for (int i = 1; i<=3; i++)
+            ClassifiedBobsRDDs.add(mapClassify(BobRDDs.get(i-1),ReferenceSets.get(i-1) , String.valueOf(i)));
 
-        JavaPairRDD<String, List<String>> city_classifiedRDD = mapClassify(city_pairsRDD, s3, "3");
+        JavaPairRDD<String, Iterable<List<String>>> BobsRDDGrouped =  ClassifiedBobsRDDs.get(0).union(ClassifiedBobsRDDs.get(1).union(ClassifiedBobsRDDs.get(2))).groupByKey() ;
+        JavaPairRDD<String, Iterable<List<String>>> AlicesRDDGrouped =  ClassifiedAlicesRDDs.get(0).union(ClassifiedAlicesRDDs.get(1).union(ClassifiedAlicesRDDs.get(2))).groupByKey() ;
+        // combine the 2 different databases Alices and Bob.
+        JavaPairRDD<String, Iterable<List<String>>> ClassifiedCombinedRDD = BobsRDDGrouped.union(AlicesRDDGrouped);
 
-        JavaPairRDD<String, Iterable<List<String>>> classifiedGroupedRDD = name_classifiedRDD.union(last_name_classifiedRDD.union(city_classifiedRDD)).groupByKey() ;
-
-        JavaPairRDD<String, String> blocksRDD = classifiedGroupedRDD.flatMapToPair(Simulator::combineBlocks);
-
+        JavaPairRDD<String, String> blocksRDD = ClassifiedCombinedRDD.flatMapToPair(Simulator::combineBlocks);
 
         JavaPairRDD<String, Iterable<String>> results = blocksRDD.groupByKey().filter(block -> {
             boolean sourceA = false ;
@@ -81,7 +92,6 @@ public class Simulator {
 
             return sourceA && sourceB ;
         });
-
 
 
         results.collect().forEach(System.out::println);
@@ -102,9 +112,8 @@ public class Simulator {
     }
 
     public static JavaPairRDD<String, String> mapBlockingAttributes(JavaRDD<List<String>> inputRDD, int whichBAtomap) {
-
+        // method returns pairs of [a1, nicholas], [a2, ann], etc.
         return inputRDD.mapToPair(listOfBAs -> new Tuple2<>(listOfBAs.get(0), listOfBAs.get(whichBAtomap)));
-
     }
 
 
@@ -193,9 +202,7 @@ public class Simulator {
                 blocks.add(new Tuple2<>(block, TuppleOfbas._1()));
                 break;
             }
-
         }
-
         return blocks.iterator();
     }
 }
