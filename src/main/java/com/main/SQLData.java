@@ -20,7 +20,7 @@ public class SQLData {
 
         // Create and show demo dataset
         Dataset<Row> demo = spark.read().format("jdbc")
-                .option("url", "jdbc:sqlite:test.db")
+                .option("url", "jdbc:sqlite:/home/user/test.db")
                 .option("driver", "org.sqlite.JDBC")
                 // Demo query: top 10 rows
                 .option("query",

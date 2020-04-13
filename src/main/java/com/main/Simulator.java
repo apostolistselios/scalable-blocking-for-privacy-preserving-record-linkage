@@ -8,11 +8,15 @@ import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import scala.Tuple2;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 public class Simulator {
 
@@ -45,16 +49,6 @@ public class Simulator {
 
         JavaRDD<List<String>> AlicesRDD = sc.parallelize(Alice_DB);
         JavaRDD<List<String>> BobsRDD = sc.parallelize(Bob_DB);
-        /*
-         * JavaPairRDD<String, String> pairsRDD = inputRDD.flatMapToPair( x -> {
-         * List<Tuple2<String, String>> pairs = new ArrayList() ;
-         *
-         * for(String ba : x.subList(1, x.size())) { pairs.add(new Tuple2<String,
-         * String>(x.get(0),ba)) ; } return pairs.iterator();
-         *
-         * }) ;
-         */
-        // Add all Alice's RDDs created in a list name_pairsRDD, last_nameRDD, etc.
 
         ArrayList<JavaPairRDD<String, String>> AliceRDDs = new ArrayList<JavaPairRDD<String, String>>();
         for (int i = 1; i<=3; i++)
@@ -78,35 +72,26 @@ public class Simulator {
 
         JavaPairRDD<String, Iterable<List<String>>> BobsRDDGrouped =  ClassifiedBobsRDDs.get(0).union(ClassifiedBobsRDDs.get(1).union(ClassifiedBobsRDDs.get(2))).groupByKey() ;
         JavaPairRDD<String, Iterable<List<String>>> AlicesRDDGrouped =  ClassifiedAlicesRDDs.get(0).union(ClassifiedAlicesRDDs.get(1).union(ClassifiedAlicesRDDs.get(2))).groupByKey() ;
+
+        JavaPairRDD<String, String> BobsblocksRDD = BobsRDDGrouped.flatMapToPair(BlockingAlgorithm::combineBlocks);
+        JavaPairRDD<String, String> AliceblocksRDD = AlicesRDDGrouped.flatMapToPair(BlockingAlgorithm::combineBlocks);
+
         // combine the 2 different databases Alices and Bob.
-        JavaPairRDD<String, Iterable<List<String>>> ClassifiedCombinedRDD = BobsRDDGrouped.union(AlicesRDDGrouped);
+        JavaPairRDD<String, Tuple2<Iterable<String> , Iterable<String>>> CombinedBlocks= BobsblocksRDD.cogroup(AliceblocksRDD) ;
 
-        JavaPairRDD<String, String> blocksRDD = ClassifiedCombinedRDD.flatMapToPair(BlockingAlgorithm::combineBlocks);
-
-        JavaPairRDD<String, Iterable<String>> results = blocksRDD.groupByKey().filter(block -> {
-            boolean sourceA = false ;
-            boolean sourceB = false ;
-
-            for(String recordID : block._2()){
-                if(recordID.contains("a")){
-                    sourceA = true ;
-                }else if(recordID.contains("b"))
-                    sourceB = true ;
-            }
-
-            return sourceA && sourceB ;
+        //filter block which have only one source
+        JavaPairRDD<String, Tuple2<Iterable<String> , Iterable<String>>> filteredBlocks = CombinedBlocks.filter(block -> {
+            return block._2()._1().iterator().hasNext() && block._2()._2().iterator().hasNext() ;
         });
 
+        //map blocks to <String , List<String> >
+        JavaPairRDD<String,Iterable<String>> finalBlocks = filteredBlocks.mapValues(block -> {
+            return Stream.concat(StreamSupport.stream(block._1().spliterator(),true),
+                    StreamSupport.stream(block._2().spliterator(),true)).collect(Collectors.toList()) ;
+        });
+        
 
-        results.collect().forEach(System.out::println);
-
-        /*
-         * JavaPairRDD<String,String> resultsRDD = sc.parallelizePairs(results) ;
-         *
-         * Long count = resultsRDD.count() ;
-         *
-         * System.out.println(count);
-         */
+        finalBlocks.collect().forEach(System.out::println);
 
         Scanner myscanner = new Scanner(System.in);
         myscanner.nextLine();
