@@ -32,7 +32,6 @@
               <artifactSet>
                 <includes>
                   <include>org.apache.commons:commons-text</include>
-                  <include>org.xerial:sqlite-jdbc</include>
                 </includes>
               </artifactSet>
             </configuration>

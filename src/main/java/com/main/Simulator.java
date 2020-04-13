@@ -42,10 +42,10 @@ public class Simulator {
 
         SparkConf conf = new SparkConf().setAppName("startingSpark");
         JavaSparkContext sc = new JavaSparkContext(conf);
-        SQLData db = new SQLData(conf);
-
-        //For now only used for debugging
-        db.startSQL();
+//        SQLData db = new SQLData(conf);
+//
+//        //For now only used for debugging
+//        db.startSQL();
 
         JavaRDD<List<String>> AlicesRDD = sc.parallelize(Alice_DB);
         JavaRDD<List<String>> BobsRDD = sc.parallelize(Bob_DB);
