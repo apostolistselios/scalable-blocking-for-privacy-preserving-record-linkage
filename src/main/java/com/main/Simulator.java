@@ -37,8 +37,8 @@ public class Simulator {
         Alice_DB.add(Arrays.asList("a2", "ann", "cobb", "london"));
 
         // Bob's data
-        Bob_DB.add(Arrays.asList("b1", "kevin", "anderson", "warsaw"));
-        Bob_DB.add(Arrays.asList("b2", "anne", "cobb", "london"));
+        Bob_DB.add(Arrays.asList("a3", "kevin", "anderson", "warsaw"));
+        Bob_DB.add(Arrays.asList("a2", "anne", "cobb", "london"));
 
         SparkConf conf = new SparkConf().setAppName("startingSpark");
         JavaSparkContext sc = new JavaSparkContext(conf);
@@ -61,37 +61,44 @@ public class Simulator {
 
         // classify for each
         // get the name_pairsRDD,last_nameRDD, etc. and classify it respectively with 1st reference set, 2nd, etc and add it into an ArrayList.
-        ArrayList<JavaPairRDD<String, List<String>>> ClassifiedAlicesRDDs = new ArrayList<JavaPairRDD<String, List<String>>>();
+        ArrayList<JavaPairRDD<String, Tuple2<Integer,String>>> ClassifiedAlicesRDDs = new ArrayList<>();
         for (int i = 1; i<=3; i++)
             ClassifiedAlicesRDDs.add(BlockingAlgorithm.mapClassify(AliceRDDs.get(i-1),ReferenceSets.get(i-1) , String.valueOf(i)));
 
-        ArrayList<JavaPairRDD<String, List<String>>> ClassifiedBobsRDDs = new ArrayList<JavaPairRDD<String, List<String>>>();
+        ArrayList<JavaPairRDD<String, Tuple2<Integer,String>>> ClassifiedBobsRDDs = new ArrayList<>();
 
         for (int i = 1; i<=3; i++)
             ClassifiedBobsRDDs.add(BlockingAlgorithm.mapClassify(BobRDDs.get(i-1),ReferenceSets.get(i-1) , String.valueOf(i)));
 
-        JavaPairRDD<String, Iterable<List<String>>> BobsRDDGrouped =  ClassifiedBobsRDDs.get(0).union(ClassifiedBobsRDDs.get(1).union(ClassifiedBobsRDDs.get(2))).groupByKey() ;
-        JavaPairRDD<String, Iterable<List<String>>> AlicesRDDGrouped =  ClassifiedAlicesRDDs.get(0).union(ClassifiedAlicesRDDs.get(1).union(ClassifiedAlicesRDDs.get(2))).groupByKey() ;
+        //data in rdds is like (recordID , Tuple(score , class) )
 
-        JavaPairRDD<String, String> BobsblocksRDD = BobsRDDGrouped.flatMapToPair(BlockingAlgorithm::combineBlocks);
-        JavaPairRDD<String, String> AliceblocksRDD = AlicesRDDGrouped.flatMapToPair(BlockingAlgorithm::combineBlocks);
+        JavaPairRDD<String, Iterable<Tuple2<Integer, String>>> BobsRDDGrouped =  ClassifiedBobsRDDs.get(0).union(ClassifiedBobsRDDs.get(1).union(ClassifiedBobsRDDs.get(2))).groupByKey() ;
+        JavaPairRDD<String, Iterable<Tuple2<Integer, String>>> AlicesRDDGrouped =  ClassifiedAlicesRDDs.get(0).union(ClassifiedAlicesRDDs.get(1).union(ClassifiedAlicesRDDs.get(2))).groupByKey() ;
+
+        JavaPairRDD<String, Tuple2<String, Integer>>BobsblocksRDD = BobsRDDGrouped.flatMapToPair(BlockingAlgorithm::combineBlocks);
+        JavaPairRDD<String, Tuple2<String, Integer>> AliceblocksRDD = AlicesRDDGrouped.flatMapToPair(BlockingAlgorithm::combineBlocks);
 
         // combine the 2 different databases Alices and Bob.
-        JavaPairRDD<String, Tuple2<Iterable<String> , Iterable<String>>> CombinedBlocks= BobsblocksRDD.cogroup(AliceblocksRDD) ;
+        JavaPairRDD<String, Tuple2<Iterable<Tuple2<String, Integer>>, Iterable<Tuple2<String, Integer>>>> CombinedBlocks= BobsblocksRDD.cogroup(AliceblocksRDD) ;
 
         //filter block which have only one source
-        JavaPairRDD<String, Tuple2<Iterable<String> , Iterable<String>>> filteredBlocks = CombinedBlocks.filter(block -> {
+        JavaPairRDD<String, Tuple2<Iterable<Tuple2<String, Integer>>, Iterable<Tuple2<String, Integer>>>> filteredBlocks = CombinedBlocks.filter(block -> {
             return block._2()._1().iterator().hasNext() && block._2()._2().iterator().hasNext() ;
         });
 
         //map blocks to <String , List<String> >
-        JavaPairRDD<String,Iterable<String>> finalBlocks = filteredBlocks.mapValues(block -> {
+        JavaPairRDD<String,Iterable<Tuple2<String, Integer>>> finalBlocks = filteredBlocks.mapValues(block -> {
             return Stream.concat(StreamSupport.stream(block._1().spliterator(),true),
                     StreamSupport.stream(block._2().spliterator(),true)).collect(Collectors.toList()) ;
         });
-        
+
+
+
+
 
         finalBlocks.collect().forEach(System.out::println);
+
+
 
         Scanner myscanner = new Scanner(System.in);
         myscanner.nextLine();
