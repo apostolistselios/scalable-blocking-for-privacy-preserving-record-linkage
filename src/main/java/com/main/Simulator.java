@@ -10,10 +10,7 @@ import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import scala.Tuple2;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Scanner;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -23,7 +20,7 @@ public class Simulator {
     public static void main(String[] args) {
 
 
-        //TODO  Implement with different inputs for Alice and Bob and merge them !!!
+        //TODO  See if we can do this with Datasets
 
         Logger.getLogger("org.apache").setLevel(Level.WARN);
         List<List<String>> Alice_DB = new ArrayList<>();
@@ -37,8 +34,8 @@ public class Simulator {
         Alice_DB.add(Arrays.asList("a2", "ann", "cobb", "london"));
 
         // Bob's data
-        Bob_DB.add(Arrays.asList("a3", "kevin", "anderson", "warsaw"));
-        Bob_DB.add(Arrays.asList("a2", "anne", "cobb", "london"));
+        Bob_DB.add(Arrays.asList("b1", "kevin", "anderson", "warsaw"));
+        Bob_DB.add(Arrays.asList("b2", "anne", "cobb", "london"));
 
         SparkConf conf = new SparkConf().setAppName("startingSpark");
         JavaSparkContext sc = new JavaSparkContext(conf);
@@ -87,16 +84,39 @@ public class Simulator {
         });
 
         //map blocks to <String , List<String> >
-        JavaPairRDD<String,Iterable<Tuple2<String, Integer>>> finalBlocks = filteredBlocks.mapValues(block -> {
-            return Stream.concat(StreamSupport.stream(block._1().spliterator(),true),
-                    StreamSupport.stream(block._2().spliterator(),true)).collect(Collectors.toList()) ;
+        JavaPairRDD<String,Iterable<Tuple2<String, Integer>>> finalBlocks = filteredBlocks.mapValues(block -> Stream.concat(StreamSupport.stream(block._1().spliterator(),true),
+                StreamSupport.stream(block._2().spliterator(),true)).sorted(Comparator.comparingInt(Tuple2::_2)).collect(Collectors.toList()));
+
+
+
+        JavaPairRDD<String,Integer> predictedMatchesRDD = finalBlocks.flatMapToPair(block -> {
+
+                List<Tuple2<String,Integer>> records = new ArrayList<>() ;
+                Iterator<Tuple2<String, Integer>>  it = block._2().iterator() ;
+
+                Tuple2<String, Integer> currentBA = it.next();
+                String record ;
+                while (true) {
+                    Tuple2<String, Integer> nextBA;
+
+                    if (it.hasNext()) {
+                        nextBA = it.next() ;
+                        record = currentBA._1().concat(nextBA._1()) ;
+                        records.add(new Tuple2<>(record,1)) ;
+                        currentBA = nextBA ;
+                    } else
+                        break;
+
+
+                 }
+
+                return records.iterator();
         });
 
 
+        JavaPairRDD<String, Integer> matchesCount = predictedMatchesRDD.reduceByKey(Integer::sum) ;
 
-
-
-        finalBlocks.collect().forEach(System.out::println);
+        matchesCount.collect().forEach(System.out::println);
 
 
 
