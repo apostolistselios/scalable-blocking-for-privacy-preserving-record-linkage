@@ -64,7 +64,7 @@
                         <manifest>
                             <addClasspath>true</addClasspath>
                             <classpathPrefix>lib/</classpathPrefix>
-                            <mainClass>com.main.Simulator</mainClass>
+                            <mainClass>com.simulator.Simulator</mainClass>
                         </manifest>
                     </archive>
                 </configuration>

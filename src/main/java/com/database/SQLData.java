@@ -1,4 +1,4 @@
-package com.main;
+package com.database;
 
 
 import org.apache.spark.SparkConf;
