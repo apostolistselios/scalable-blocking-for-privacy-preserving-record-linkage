@@ -3,21 +3,22 @@ package com.simulator;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Scanner;
 
+import org.apache.hadoop.io.BooleanWritable.Comparator;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.api.java.function.Function;
 
 import com.algorithms.ReferenceSetBlocking;
 import com.utils.Block;
 import com.utils.BlockingAttribute;
-
-import scala.Tuple2;
 
 public class Simulator {
 
@@ -76,12 +77,17 @@ public class Simulator {
 //        		System.out.println(ba);
 //        	}
 //        }
-//       
+//        
+//        for(JavaPairRDD<String, BlockingAttribute> rdd : ClassifiedBobsRDDs) {
+//        	for(Tuple2<String, BlockingAttribute> ba : rdd.collect()) {
+//        		System.out.println(ba);
+//        	}
+//        }
+       
         // data in rdds is like (recordID , BlockingAttribute(classID, score))
         JavaPairRDD<String, Iterable<BlockingAttribute>> BobsRDDGrouped =  ClassifiedBobsRDDs.get(0).union(ClassifiedBobsRDDs.get(1).union(ClassifiedBobsRDDs.get(2))).groupByKey() ;
         JavaPairRDD<String, Iterable<BlockingAttribute>> AlicesRDDGrouped =  ClassifiedAlicesRDDs.get(0).union(ClassifiedAlicesRDDs.get(1).union(ClassifiedAlicesRDDs.get(2))).groupByKey() ;
         
-//        System.out.println("Grouped");
 //        for(Tuple2<String, Iterable<BlockingAttribute>> ba: AlicesRDDGrouped.collect()) {
 //        	System.out.println(ba);
 //        }
@@ -89,7 +95,6 @@ public class Simulator {
         JavaPairRDD<String, BlockingAttribute> BobsblocksRDD = BobsRDDGrouped.flatMapToPair(rsb::combineBlocks);
         JavaPairRDD<String, BlockingAttribute> AliceblocksRDD = AlicesRDDGrouped.flatMapToPair(rsb::combineBlocks);
         
-//        System.out.println("Combined Αlice");
 //        for(Tuple2<String, BlockingAttribute> ba: AliceblocksRDD.collect()) {
 //        	System.out.println(ba);
 //        }
@@ -97,37 +102,44 @@ public class Simulator {
         // combine the 2 different databases Alices and Bob.
         JavaPairRDD<String, BlockingAttribute> CombinedBlocks = BobsblocksRDD.union(AliceblocksRDD);
         
-//        System.out.println("All");
 //        for(Tuple2<String, BlockingAttribute> ba: CombinedBlocks.collect()) {
 //        	System.out.println(ba);
 //        }
         
         JavaPairRDD<String, Iterable<BlockingAttribute>> groupedBlocks = CombinedBlocks.groupByKey();
         
-	    for(Tuple2<String, Iterable<BlockingAttribute>> ba: groupedBlocks.collect()) {
-	    	System.out.println(ba);
-	    }
-	        
-//        //filter block which have only one source
-//        JavaPairRDD<String, Iterable<BlockingAttribute>> filteredBlocks = groupedBlocks.filter(block -> {
-//            return block._2().iterator().hasNext() && block._2().iterator().hasNext();
-//        });
-//        
-//        JavaRDD<Block> blocks = groupedBlocks.map(block -> {
-//        	ArrayList<BlockingAttribute> baList = new ArrayList<>();
-//        	block._2().forEach(baList::add);
-//        	return new Block(block._1(), baList);
-//        });
-//        
-//        for(Block block : blocks.collect())
-//        	System.out.println(block);
+//	    for(Tuple2<String, Iterable<BlockingAttribute>> ba: groupedBlocks.collect()) {
+//	    	System.out.println(ba);
+//	    }
         
-//        // filter the blocks with only one blocking attribute
+////         filter the blocks with only one blocking attribute
 //        JavaPairRDD<String, Iterable<BlockingAttribute>> filteredBlocks = groupedBlocks.filter(block -> {
 //        	Iterator<BlockingAttribute> it = block._2().iterator();
 //        	it.next();
 //        	return it.hasNext();
 //        });
+	        
+        JavaRDD<Block> blocks = groupedBlocks.map(block -> {
+        	ArrayList<BlockingAttribute> baList = new ArrayList<>();
+        	block._2().forEach(baList::add);
+        	Block blockObj = new Block(block._1(), baList);
+        	blockObj.calculateRank();
+        	return blockObj;
+        }).filter(block -> block.getBAList().size() >= 2);
+        
+//        JavaRDD<Block> filteredBlocks = blocks.filter(block -> block.getBAList().size() >= 2);
+        
+        JavaRDD<Block> sortedBlocks = blocks.sortBy(new Function<Block, Integer>() {
+			private static final long serialVersionUID = 1L;
+			@Override
+        	public Integer call(Block block) throws Exception {
+        		return block.getRank();
+			}
+        }, true, 1);
+        
+        System.out.println("BLOCKS");
+        for(Block block : sortedBlocks.collect())
+        	System.out.println(block);
 
 //        //map blocks to <String , List<String> >
 //        JavaPairRDD<String,Iterable<Tuple2<String, Integer>>> finalBlocks = filteredBlocks.mapValues(block -> Stream.concat(StreamSupport.stream(block._1().spliterator(),true),
