@@ -2,7 +2,7 @@ package com.utils;
 
 import java.io.Serializable;
 
-public class BlockingAttribute implements Serializable{
+public class BlockingAttribute implements Serializable, Comparable<BlockingAttribute>{
 	private static final long serialVersionUID = 8825524692657181465L;
 	private String classID;
 	private String recordID;
@@ -37,7 +37,14 @@ public class BlockingAttribute implements Serializable{
 		this.score = score;
 	}
 	
+	@Override
 	public String toString() {
 		return "BA(" + String.join(",", this.classID, this.recordID, String.valueOf(this.score)) + ")";
+	}
+
+	@Override
+	public int compareTo(BlockingAttribute other) {
+		int otherScore = other.getScore();
+		return this.score - otherScore;	
 	}
 }

@@ -3,6 +3,7 @@ package com.simulator;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Scanner;
@@ -124,22 +125,16 @@ public class Simulator {
         	block._2().forEach(baList::add);
         	Block blockObj = new Block(block._1(), baList);
         	blockObj.calculateRank();
+        	Collections.sort(blockObj.getBAList());
         	return blockObj;
         }).filter(block -> block.getBAList().size() >= 2);
         
 //        JavaRDD<Block> filteredBlocks = blocks.filter(block -> block.getBAList().size() >= 2);
         
-        JavaRDD<Block> sortedBlocks = blocks.sortBy(new Function<Block, Integer>() {
-			private static final long serialVersionUID = 1L;
-			@Override
-        	public Integer call(Block block) throws Exception {
-        		return block.getRank();
-			}
-        }, true, 1);
-        
         System.out.println("BLOCKS");
-        for(Block block : sortedBlocks.collect())
+        for(Block block : blocks.collect()) {
         	System.out.println(block);
+        }
 
 //        //map blocks to <String , List<String> >
 //        JavaPairRDD<String,Iterable<Tuple2<String, Integer>>> finalBlocks = filteredBlocks.mapValues(block -> Stream.concat(StreamSupport.stream(block._1().spliterator(),true),

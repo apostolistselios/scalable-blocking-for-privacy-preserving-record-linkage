@@ -43,6 +43,6 @@ public class Block implements Serializable {
 	}
 	
 	public String toString() {
-		return this.id + "(Rank:" + this.rank + "BA - " + this.baList + ")";
+		return "[BLOCK: " + this.id + " - Rank: " + this.rank + " - " + this.baList + "]";
 	}
 }
