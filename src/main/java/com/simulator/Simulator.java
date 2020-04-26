@@ -4,22 +4,22 @@ package com.simulator;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Scanner;
 
-import org.apache.hadoop.io.BooleanWritable.Comparator;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.api.java.function.Function;
 
+import com.algorithms.MetaBlocking;
 import com.algorithms.ReferenceSetBlocking;
 import com.utils.Block;
 import com.utils.BlockingAttribute;
+
+import scala.Tuple2;
 
 public class Simulator {
 
@@ -135,11 +135,15 @@ public class Simulator {
         for(Block block : blocks.collect()) {
         	System.out.println(block);
         }
-
+        
 //        //map blocks to <String , List<String> >
 //        JavaPairRDD<String,Iterable<Tuple2<String, Integer>>> finalBlocks = filteredBlocks.mapValues(block -> Stream.concat(StreamSupport.stream(block._1().spliterator(),true),
 //                StreamSupport.stream(block._2().spliterator(),true)).sorted(Comparator.comparingInt(Tuple2::_2)).collect(Collectors.toList()));
-// 
+        
+        MetaBlocking mb = new MetaBlocking();
+        
+        JavaPairRDD<String, Integer> matches = mb.predict(blocks).reduceByKey(Integer::sum);
+        
 //        JavaPairRDD<String,Integer> predictedMatchesRDD = finalBlocks.flatMapToPair(block -> {
 //
 //                List<Tuple2<String,Integer>> records = new ArrayList<>() ;
@@ -162,8 +166,11 @@ public class Simulator {
 //        });
 //
 //        JavaPairRDD<String, Integer> matchesCount = predictedMatchesRDD.reduceByKey(Integer::sum) ;
-//
-//        matchesCount.collect().forEach(System.out::println);
+        
+        System.out.println("MATCHES");
+        for(Tuple2<String,Integer> match : matches.collect()) {
+        	System.out.println(match);
+        }
 
         Scanner myscanner = new Scanner(System.in);
         myscanner.nextLine();
