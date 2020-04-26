@@ -10,7 +10,6 @@ import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 
 import com.utils.BinarySearch;
-import com.utils.Block;
 import com.utils.BlockingAttribute;
 
 import scala.Tuple2;
@@ -65,13 +64,11 @@ public class ReferenceSetBlocking implements Serializable {
                 nextBA = it.next();
                 blockID = currentBA.getClassID() + "-" + nextBA.getClassID();
                 currentBA.setRecordID(baTuple._1());
-//                blocks.add(new Block(blockID));
                 blocks.add(new Tuple2<>(blockID, currentBA));
                 currentBA = nextBA;
             } else {
                 blockID = currentBA.getClassID() + "-" + firstBA.getClassID();
                 currentBA.setRecordID(baTuple._1());
-//                blocks.add(new Block(blockID, currentBA));
                 blocks.add(new Tuple2<>(blockID, currentBA));
                 break;
             }

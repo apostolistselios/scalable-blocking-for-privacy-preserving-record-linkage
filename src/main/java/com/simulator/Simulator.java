@@ -72,53 +72,18 @@ public class Simulator {
         ArrayList<JavaPairRDD<String, BlockingAttribute>> ClassifiedBobsRDDs = new ArrayList<>();
         for (int i = 1; i <= NUMBER_OF_BLOCKING_ATTRS; i++)
             ClassifiedBobsRDDs.add(rsb.classify(BobRDDs.get(i-1), ReferenceSets.get(i-1), String.valueOf(i)));
-        
-//        for(JavaPairRDD<String, BlockingAttribute> rdd : ClassifiedAlicesRDDs) {
-//        	for(Tuple2<String, BlockingAttribute> ba : rdd.collect()) {
-//        		System.out.println(ba);
-//        	}
-//        }
-//        
-//        for(JavaPairRDD<String, BlockingAttribute> rdd : ClassifiedBobsRDDs) {
-//        	for(Tuple2<String, BlockingAttribute> ba : rdd.collect()) {
-//        		System.out.println(ba);
-//        	}
-//        }
        
         // data in rdds is like (recordID , BlockingAttribute(classID, score))
         JavaPairRDD<String, Iterable<BlockingAttribute>> BobsRDDGrouped =  ClassifiedBobsRDDs.get(0).union(ClassifiedBobsRDDs.get(1).union(ClassifiedBobsRDDs.get(2))).groupByKey() ;
         JavaPairRDD<String, Iterable<BlockingAttribute>> AlicesRDDGrouped =  ClassifiedAlicesRDDs.get(0).union(ClassifiedAlicesRDDs.get(1).union(ClassifiedAlicesRDDs.get(2))).groupByKey() ;
         
-//        for(Tuple2<String, Iterable<BlockingAttribute>> ba: AlicesRDDGrouped.collect()) {
-//        	System.out.println(ba);
-//        }
-        
         JavaPairRDD<String, BlockingAttribute> BobsblocksRDD = BobsRDDGrouped.flatMapToPair(rsb::combineBlocks);
         JavaPairRDD<String, BlockingAttribute> AliceblocksRDD = AlicesRDDGrouped.flatMapToPair(rsb::combineBlocks);
-        
-//        for(Tuple2<String, BlockingAttribute> ba: AliceblocksRDD.collect()) {
-//        	System.out.println(ba);
-//        }
         
         // combine the 2 different databases Alices and Bob.
         JavaPairRDD<String, BlockingAttribute> CombinedBlocks = BobsblocksRDD.union(AliceblocksRDD);
         
-//        for(Tuple2<String, BlockingAttribute> ba: CombinedBlocks.collect()) {
-//        	System.out.println(ba);
-//        }
-        
         JavaPairRDD<String, Iterable<BlockingAttribute>> groupedBlocks = CombinedBlocks.groupByKey();
-        
-//	    for(Tuple2<String, Iterable<BlockingAttribute>> ba: groupedBlocks.collect()) {
-//	    	System.out.println(ba);
-//	    }
-        
-////         filter the blocks with only one blocking attribute
-//        JavaPairRDD<String, Iterable<BlockingAttribute>> filteredBlocks = groupedBlocks.filter(block -> {
-//        	Iterator<BlockingAttribute> it = block._2().iterator();
-//        	it.next();
-//        	return it.hasNext();
-//        });
 	        
         JavaRDD<Block> blocks = groupedBlocks.map(block -> {
         	ArrayList<BlockingAttribute> baList = new ArrayList<>();
