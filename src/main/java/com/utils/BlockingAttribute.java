@@ -13,6 +13,12 @@ public class BlockingAttribute implements Serializable, Comparable<BlockingAttri
 		this.score = score;
 	}
 
+	public BlockingAttribute(String classID,String recordID, int score) {
+		this.classID = classID;
+		this.recordID = recordID;
+		this.score = score;
+	}
+
 	public String getRecordID() {
 		return recordID;
 	}

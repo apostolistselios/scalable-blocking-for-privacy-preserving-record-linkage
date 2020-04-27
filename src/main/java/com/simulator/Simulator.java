@@ -1,25 +1,19 @@
 package com.simulator;
 
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Scanner;
-
+import com.algorithms.MetaBlocking;
+import com.algorithms.ReferenceSetBlocking;
+import com.utils.Block;
+import com.utils.BlockingAttribute;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
-
-import com.algorithms.MetaBlocking;
-import com.algorithms.ReferenceSetBlocking;
-import com.utils.Block;
-import com.utils.BlockingAttribute;
-
 import scala.Tuple2;
+
+import java.util.*;
 
 public class Simulator {
 
@@ -115,14 +109,14 @@ public class Simulator {
 //                Iterator<Tuple2<String, Integer>>  it = block._2().iterator() ;
 //
 //                Tuple2<String, Integer> currentBA = it.next();
-//                String record ;
+//                String Record ;
 //                while (true) {
 //                    Tuple2<String, Integer> nextBA;
 //
 //                    if (it.hasNext()) {
 //                        nextBA = it.next() ;
-//                        record = currentBA._1().concat(nextBA._1()) ;
-//                        records.add(new Tuple2<>(record,1)) ;
+//                        Record = currentBA._1().concat(nextBA._1()) ;
+//                        records.add(new Tuple2<>(Record,1)) ;
 //                        currentBA = nextBA ;
 //                    } else
 //                        break;
