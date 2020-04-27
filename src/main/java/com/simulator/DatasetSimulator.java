@@ -65,7 +65,6 @@ public class DatasetSimulator {
         +---+-----+
 
         */
-        BobDSs.get(0).show();
 
         // classify for each
         // classify respectively for every blocking attribute with 1st reference set, 2nd, etc and add it into an ArrayList.
