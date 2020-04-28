@@ -43,7 +43,14 @@ public class DatasetSimulator {
                 new Record("b1", "kevin", "anderson", "warsaw"),
                 new Record("b2", "anne", "cobb", "london")
         ), Record.class);
-
+        /*  data in Bob_DS is like
+            +------+---+-----+--------+
+            |  city| id| name| surname|
+            +------+---+-----+--------+
+            |warsaw| b1|kevin|anderson|
+            |london| b2| anne|    cobb|
+            +------+---+-----+--------+
+         */
 
         ReferenceSetBlocking rsb = new ReferenceSetBlocking();
 
