@@ -64,8 +64,8 @@ public class ReferenceSetBlocking implements Serializable {
 
     public Dataset<BlockingAttribute> classify(Dataset<Row> baDS , List<String> rs,
                                                String rsnum){
-        return baDS.map((MapFunction<Row, BlockingAttribute>) s -> {
-            String ba = s.getString(1) ;
+        return baDS.map((MapFunction<Row, BlockingAttribute>) row -> {
+            String ba = row.getString(1) ;
 
             String classID;
             int pos;
@@ -79,11 +79,11 @@ public class ReferenceSetBlocking implements Serializable {
             // return a Record object
             if (d1 <= d2 ) {
                 classID = "S" + rsnum + "." + pos; //(pos-1) +1
-                return new BlockingAttribute(classID,s.getString(0), d1);
+                return new BlockingAttribute(classID,row.getString(0), d1);
             }
             else {
                 classID = "S" + rsnum + "." + (pos + 1); // (pos) + 1
-                return new BlockingAttribute(classID,s.getString(0),d2);
+                return new BlockingAttribute(classID,row.getString(0),d2);
             }
         }, Encoders.bean(BlockingAttribute.class));
     }
