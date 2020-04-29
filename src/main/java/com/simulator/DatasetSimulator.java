@@ -28,6 +28,11 @@ public class DatasetSimulator {
         SparkSession spark = SparkSession.builder().appName("Dataset").getOrCreate();
         spark.sparkContext().setLogLevel("ERROR");
 
+        // Test
+        Dataset<Row> demo = spark.read().format("csv")
+                .load("hdfs://master:9000/user/user/blocking/db/main_A_25p_1k.csv");
+        demo.show();
+
         List<String> s1 = Arrays.asList("anthony", "lawrence", "victor", "zoe");
         List<String> s2 = Arrays.asList("alex", "dorothy", "jonathan", "naomi");
         List<String> s3 = Arrays.asList("alex", "john", "rhonda", "tristan");

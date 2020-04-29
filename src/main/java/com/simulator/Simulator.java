@@ -39,10 +39,6 @@ public class Simulator {
 
         SparkConf conf = new SparkConf().setAppName("startingSpark");
         JavaSparkContext sc = new JavaSparkContext(conf);
-//        SQLData db = new SQLData(conf);
-//
-//        //For now only used for debugging
-//        db.startSQL();
 
         JavaRDD<List<String>> AlicesRDD = sc.parallelize(Alice_DB);
         JavaRDD<List<String>> BobsRDD = sc.parallelize(Bob_DB);
@@ -88,43 +84,14 @@ public class Simulator {
         	return blockObj;
         }).filter(block -> block.getBAList().size() >= 2);
         
-//        JavaRDD<Block> filteredBlocks = blocks.filter(block -> block.getBAList().size() >= 2);
-        
         System.out.println("BLOCKS");
         for(Block block : blocks.collect()) {
         	System.out.println(block);
         }
-        
-//        //map blocks to <String , List<String> >
-//        JavaPairRDD<String,Iterable<Tuple2<String, Integer>>> finalBlocks = filteredBlocks.mapValues(block -> Stream.concat(StreamSupport.stream(block._1().spliterator(),true),
-//                StreamSupport.stream(block._2().spliterator(),true)).sorted(Comparator.comparingInt(Tuple2::_2)).collect(Collectors.toList()));
-        
+
         MetaBlocking mb = new MetaBlocking();
         
         JavaPairRDD<String, Integer> matches = mb.predict(blocks).reduceByKey(Integer::sum);
-        
-//        JavaPairRDD<String,Integer> predictedMatchesRDD = finalBlocks.flatMapToPair(block -> {
-//
-//                List<Tuple2<String,Integer>> records = new ArrayList<>() ;
-//                Iterator<Tuple2<String, Integer>>  it = block._2().iterator() ;
-//
-//                Tuple2<String, Integer> currentBA = it.next();
-//                String Record ;
-//                while (true) {
-//                    Tuple2<String, Integer> nextBA;
-//
-//                    if (it.hasNext()) {
-//                        nextBA = it.next() ;
-//                        Record = currentBA._1().concat(nextBA._1()) ;
-//                        records.add(new Tuple2<>(Record,1)) ;
-//                        currentBA = nextBA ;
-//                    } else
-//                        break;
-//                 }
-//                return records.iterator();
-//        });
-//
-//        JavaPairRDD<String, Integer> matchesCount = predictedMatchesRDD.reduceByKey(Integer::sum) ;
         
         System.out.println("MATCHES");
         for(Tuple2<String,Integer> match : matches.collect()) {
