@@ -8,7 +8,11 @@ import org.apache.log4j.Logger;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder;
+import org.apache.spark.sql.catalyst.encoders.RowEncoder;
 import org.apache.spark.sql.functions;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.StructType;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -95,29 +99,43 @@ public class DatasetSimulator {
             |   S1.1|      b1|    6|
             |   S1.1|      b2|    4|
             +-------+--------+-----+
-
          */
 
+        //define the schema for Blocks dataset
+        StructType schema = new StructType();
+        schema = schema.add("blockID", DataTypes.StringType, false);
+        schema = schema.add("record", DataTypes.createMapType(DataTypes.StringType,DataTypes.IntegerType), false);
+        ExpressionEncoder<Row> encoder = RowEncoder.apply(schema);
 
-        Dataset<Row> BobsDSGrouped =  ClassifiedBobsDSs.get(0).union(ClassifiedBobsDSs.get(1).union(ClassifiedBobsDSs.get(2)))
-                .groupBy("recordID").agg(functions.collect_list("classID"),functions.collect_list("score"));
-        Dataset<Row> AlicesDSGrouped =  ClassifiedAlicesDSs.get(0).union(ClassifiedAlicesDSs.get(1).union(ClassifiedAlicesDSs.get(2)))
-                .groupBy("recordID").agg(functions.collect_list("classID"),functions.collect_list("score"));
+        Dataset<Row> BobsBlocksDS =  ClassifiedBobsDSs.get(0).union(ClassifiedBobsDSs.get(1).union(ClassifiedBobsDSs.get(2)))
+                .groupBy("recordID").agg(functions.collect_list("classID"),functions.collect_list("score"))
+                .flatMap(rsb::combineBlocksDS,encoder) ;
 
-        /* data in ds is like
-        example of grouping for Bob's db
-        +--------+---------------------+-------------------+
-        |recordID|collect_list(classID)|collect_list(score)|
-        +--------+---------------------+-------------------+
-        |      b2|   [S3.2, S1.1, S2.1]|          [4, 4, 4]|
-        |      b1|   [S3.4, S2.1, S1.1]|          [5, 6, 6]|
-        +--------+---------------------+-------------------+
+        Dataset<Row> AlicesBlocksDS =  ClassifiedAlicesDSs.get(0).union(ClassifiedAlicesDSs.get(1).union(ClassifiedAlicesDSs.get(2)))
+                .groupBy("recordID").agg(functions.collect_list("classID"),functions.collect_list("score"))
+                .flatMap(rsb::combineBlocksDS,encoder) ;
+        /* After groupBy data in ds is like : example of grouping for Bob's db
+                 +--------+---------------------+-------------------+
+                |recordID|collect_list(classID)|collect_list(score)|
+                +--------+---------------------+-------------------+
+                |      b2|   [S3.2, S1.1, S2.1]|          [4, 4, 4]|
+                |      b1|   [S3.4, S2.1, S1.1]|          [5, 6, 6]|
+                +--------+---------------------+-------------------+
+           After flatmap data in ds is like : example for Bob's Blocks
+                +---------+----------+
+                |  blockID|    record|
+                +---------+----------+
+                |S1.1-S2.1| [b2 -> 8]|
+                |S1.1-S3.2| [b2 -> 8]|
+                |S2.1-S3.2| [b2 -> 8]|
+                |S1.1-S2.1|[b1 -> 12]|
+                |S1.1-S3.4|[b1 -> 11]|
+                |S2.1-S3.4|[b1 -> 11]|
+                +---------+----------+
         */
-        BobsDSGrouped.show();
-
-
-
-
+        BobsBlocksDS.show();
+        AlicesBlocksDS.show();
+        //TODO GroupBy blockID , sort on records of every block and meta-blocking
         Scanner myscanner = new Scanner(System.in);
         myscanner.nextLine();
         myscanner.close();

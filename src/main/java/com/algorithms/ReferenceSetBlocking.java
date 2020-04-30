@@ -9,7 +9,9 @@ import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.RowFactory;
 import scala.Tuple2;
+import scala.collection.Map;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -19,8 +21,9 @@ import java.util.List;
 public class ReferenceSetBlocking implements Serializable {
 	
 	private static final long serialVersionUID = -998419074815274020L;
+    private static final int NUMBER_OF_BLOCKING_ATTRS = 3;
 
-	public ReferenceSetBlocking() {}
+    public ReferenceSetBlocking() {}
 	
     public JavaPairRDD<String, String> mapBlockingAttributes(JavaRDD<List<String>> inputRDD, int ba) {
         // method returns pairs of [Record ID, BA Value] e.g. [a1, nicholas], [a2, ann], etc.
@@ -109,6 +112,39 @@ public class ReferenceSetBlocking implements Serializable {
                 blocks.add(new Tuple2<>(blockID, currentBA));
                 break;
             }
+        }
+        return blocks.iterator();
+    }
+
+
+    public Iterator<Row> combineBlocksDS(Row row) {
+        List<Row> blocks = new ArrayList<>();
+
+        //Class Ids
+        List<String> classIDlist = row.getList(1);
+
+        // scores
+        List<Integer> scorelist = row.getList(2);
+
+        for (int i = 0; i < NUMBER_OF_BLOCKING_ATTRS; i++) {
+            String blockID;
+            String currClassID = classIDlist.get(i);
+            String nextClassID = classIDlist.get((i + 1) % NUMBER_OF_BLOCKING_ATTRS);
+
+            // a simple rule to keep consistency in naming of block combinations :
+            // first part in BlockID is always the smaller class lexicographically
+            if (currClassID.compareTo(nextClassID) > 0)
+                blockID = nextClassID + "-" + currClassID;
+            else
+                blockID = currClassID + "-" + nextClassID;
+
+            // map witch represent a record  <recordID, Summed score>
+            Map<String, Integer> record = new scala.collection.immutable.Map.Map1<>(
+                    row.getString(0),
+                    scorelist.get(i) + scorelist.get((i + 1) % NUMBER_OF_BLOCKING_ATTRS));
+
+
+            blocks.add(RowFactory.create(blockID, record));
         }
         return blocks.iterator();
     }
