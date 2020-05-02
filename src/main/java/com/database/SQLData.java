@@ -1,34 +1,47 @@
 package com.database;
 
 
-import org.apache.spark.SparkConf;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 
-public class SQLData {
-    SparkConf conf;
+import static org.apache.spark.sql.functions.col;
 
-    public SQLData(SparkConf conf) {
-        // Get SparkConf from Main
-        this.conf = conf;
+public class SQLData {
+    private final Dataset<Row> alice;
+    private final Dataset<Row> bob;
+    private final Dataset<Row> reference_set;
+    SparkSession spark;
+
+    public SQLData(SparkSession spark, String size) {
+        // Get SparkSession from Main
+        this.spark = spark;
+        this.alice = spark.read().format("csv")
+                .load("hdfs://master:9000/user/user/blocking/db/main_A_25p_" + size + ".csv");
+        this.bob = spark.read().format("csv")
+                .load("hdfs://master:9000/user/user/blocking/db/main_B_25p_" + size + ".csv");
+        this.reference_set = spark.read().format("csv")
+                .load("hdfs://master:9000/user/user/blocking/db/main_A_authors3.csv").limit(1000);
     }
 
-    public void startSQL(){
-        // Create DB session
-        SparkSession spark = SparkSession.builder().config(conf).getOrCreate();
+    public Dataset<Row> getAlice() {
+        return this.query(alice);
+    }
 
-        // Create and show demo dataset
-        Dataset<Row> demo = spark.read().format("jdbc")
-                .option("url", "jdbc:sqlite:/home/user/test.db")
-                .option("driver", "org.sqlite.JDBC")
-                // Demo query: top 10 rows
-                .option("query",
-                        "select * from A_25p_1k\n" +
-                        "order by 1\n" +
-                        "limit 10")
-                .load();
+    public Dataset<Row> getBob() {
+        return this.query(bob);
+    }
 
-        demo.show();
+    public Dataset<Row> getReference_set() {
+        return reference_set;
+    }
+
+    private Dataset<Row> query(Dataset<Row> ds){
+        return ds.select(
+                col("_c0").alias("id")
+                , col("_c1").alias("surname")
+                , col("_c2").alias("name")
+                , col("_c5").alias("city")
+        );
     }
 }

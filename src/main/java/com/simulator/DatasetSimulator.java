@@ -1,23 +1,20 @@
 package com.simulator;
 
 import com.algorithms.ReferenceSetBlocking;
+import com.database.SQLData;
 import com.utils.BlockingAttribute;
-import com.utils.Record;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.*;
 import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder;
 import org.apache.spark.sql.catalyst.encoders.RowEncoder;
-import org.apache.spark.sql.functions;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Scanner;
+
+import static org.apache.spark.sql.functions.col;
 
 public class DatasetSimulator {
 
@@ -32,26 +29,12 @@ public class DatasetSimulator {
         SparkSession spark = SparkSession.builder().appName("Dataset").getOrCreate();
         spark.sparkContext().setLogLevel("ERROR");
 
-        // Test
-        Dataset<Row> demo = spark.read().format("csv")
-                .load("hdfs://master:9000/user/user/blocking/db/main_A_25p_1k.csv");
-        demo.show();
+        SQLData db = new SQLData(spark, "1k");
 
-        List<String> s1 = Arrays.asList("anthony", "lawrence", "victor", "zoe");
-        List<String> s2 = Arrays.asList("alex", "dorothy", "jonathan", "naomi");
-        List<String> s3 = Arrays.asList("alex", "john", "rhonda", "tristan");
-        List<List<String>> ReferenceSets = Arrays.asList(s1,s2,s3);
+        Dataset<Row> Alice_DS = db.getAlice();
+        Dataset<Row> Bob_DS = db.getBob();
+        Dataset<Row> ReferenceSets = db.getReference_set();
 
-        Dataset<Row> Alice_DS = spark.createDataFrame(Arrays.asList(
-                new Record("a1", "nicholas", "smith", "madrid"),
-                new Record("a2", "ann", "cobb", "london")
-        ), Record.class);
-
-
-        Dataset<Row> Bob_DS = spark.createDataFrame(Arrays.asList(
-                new Record("b1", "kevin", "anderson", "warsaw"),
-                new Record("b2", "anne", "cobb", "london")
-        ), Record.class);
         /*  data in Bob_DS is like
             +------+---+-----+--------+
             |  city| id| name| surname|
@@ -85,12 +68,20 @@ public class DatasetSimulator {
         // classify for each
         // classify respectively for every blocking attribute with 1st reference set, 2nd, etc and add it into an ArrayList.
         ArrayList<Dataset<BlockingAttribute>> ClassifiedAlicesDSs = new ArrayList<>();
-        for (int i = 1; i <= NUMBER_OF_BLOCKING_ATTRS; i++)
-            ClassifiedAlicesDSs.add(rsb.classify(AliceDSs.get(i-1), ReferenceSets.get(i-1), String.valueOf(i)));
+        for (int i = 1; i <= NUMBER_OF_BLOCKING_ATTRS; i++) {
+            ClassifiedAlicesDSs.add(rsb.classify(
+                    AliceDSs.get(i - 1)
+                    , ReferenceSets.select(col("_c" + i)).as(Encoders.STRING()).collectAsList()
+                    , String.valueOf(i)));
+        }
 
         ArrayList<Dataset<BlockingAttribute>> ClassifiedBobsDSs = new ArrayList<>();
-        for (int i = 1; i <= NUMBER_OF_BLOCKING_ATTRS; i++)
-            ClassifiedBobsDSs.add(rsb.classify(BobDSs.get(i-1), ReferenceSets.get(i-1), String.valueOf(i)));
+        for (int i = 1; i <= NUMBER_OF_BLOCKING_ATTRS; i++) {
+            ClassifiedBobsDSs.add(rsb.classify(
+                    BobDSs.get(i - 1)
+                    , ReferenceSets.select(col("_c" + i)).as(Encoders.STRING()).collectAsList()
+                    , String.valueOf(i)));
+        }
         /* data in ds is like
          example of classification for name as blocking attribute for Bob's db
             +-------+--------+-----+
@@ -107,13 +98,23 @@ public class DatasetSimulator {
         schema = schema.add("record", DataTypes.createMapType(DataTypes.StringType,DataTypes.IntegerType), false);
         ExpressionEncoder<Row> encoder = RowEncoder.apply(schema);
 
-        Dataset<Row> BobsBlocksDS =  ClassifiedBobsDSs.get(0).union(ClassifiedBobsDSs.get(1).union(ClassifiedBobsDSs.get(2)))
-                .groupBy("recordID").agg(functions.collect_list("classID"),functions.collect_list("score"))
-                .flatMap(rsb::combineBlocksDS,encoder) ;
+        Dataset<BlockingAttribute> tempDS =  ClassifiedBobsDSs.get(0);
+        for (int i = 1; i < NUMBER_OF_BLOCKING_ATTRS; i++){
+            tempDS = tempDS.union(ClassifiedBobsDSs.get(i));
+        }
 
-        Dataset<Row> AlicesBlocksDS =  ClassifiedAlicesDSs.get(0).union(ClassifiedAlicesDSs.get(1).union(ClassifiedAlicesDSs.get(2)))
+        Dataset<Row> BobsBlocksDS = tempDS
                 .groupBy("recordID").agg(functions.collect_list("classID"),functions.collect_list("score"))
-                .flatMap(rsb::combineBlocksDS,encoder) ;
+                .flatMap(rsb::combineBlocksDS,encoder);
+
+        tempDS =  ClassifiedAlicesDSs.get(0);
+        for (int i = 1; i < NUMBER_OF_BLOCKING_ATTRS; i++){
+            tempDS = tempDS.union(ClassifiedAlicesDSs.get(i));
+        }
+
+        Dataset<Row> AlicesBlocksDS = tempDS
+                .groupBy("recordID").agg(functions.collect_list("classID"),functions.collect_list("score"))
+                .flatMap(rsb::combineBlocksDS,encoder);
         /* After groupBy data in ds is like : example of grouping for Bob's db
                  +--------+---------------------+-------------------+
                 |recordID|collect_list(classID)|collect_list(score)|
