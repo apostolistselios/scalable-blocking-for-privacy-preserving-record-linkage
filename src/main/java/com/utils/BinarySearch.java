@@ -10,13 +10,13 @@ public class BinarySearch {
 
             // If the element is present at the
             // middle itself
-            if (arr.get(mid).substring(0,3).equals(x.substring(0,3)) )
+            if (arr.get(mid).substring(0,1).equals(x.substring(0,1)) )
                 return mid;
 
 
             // If element is smaller than mid, then
             // it can only be present in right subarray
-            if ( x.substring(0,3).compareTo(arr.get(mid).substring(0,3)) > 0  ) {
+            if ( x.substring(0,1).compareTo(arr.get(mid).substring(0,1)) > 0  ) {
                 return binarySearch(arr, mid + 1, high, x);
             }
             else if (mid == arr.size()-1) {
