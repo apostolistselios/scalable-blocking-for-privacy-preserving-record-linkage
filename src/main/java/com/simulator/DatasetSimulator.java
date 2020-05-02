@@ -44,6 +44,9 @@ public class DatasetSimulator {
             +------+---+-----+--------+
          */
 
+        System.out.println("Data form DB loaded");
+        long t0 = System.currentTimeMillis();
+
         ReferenceSetBlocking rsb = new ReferenceSetBlocking();
 
         // distribute blocking attributes in different datasets
@@ -134,9 +137,15 @@ public class DatasetSimulator {
                 |S2.1-S3.4|[b1 -> 11]|
                 +---------+----------+
         */
+
+        long timer = (System.currentTimeMillis() - t0) / 1000;
+
         BobsBlocksDS.show();
         AlicesBlocksDS.show();
         //TODO GroupBy blockID , sort on records of every block and meta-blocking
+
+        System.out.println("Execution time: " + timer + " seconds");
+
         Scanner myscanner = new Scanner(System.in);
         myscanner.nextLine();
         myscanner.close();

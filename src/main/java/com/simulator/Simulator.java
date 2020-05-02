@@ -53,8 +53,10 @@ public class Simulator {
         List<String> s1 = Arrays.asList("anthony", "lawrence", "victor", "zoe");
         List<String> s2 = Arrays.asList("alex", "dorothy", "jonathan", "naomi");
         List<String> s3 = Arrays.asList("alex", "john", "rhonda", "tristan");
-//        List<List<String>> ReferenceSets = Arrays.asList(s1,s2,s3);
         Dataset<Row> ReferenceSets = db.getReference_set();
+
+        System.out.println("Data form DB loaded");
+        long t0 = System.currentTimeMillis();
 
         /*  data in Bob_DS is like
             +------+---+-----+--------+
@@ -113,11 +115,14 @@ public class Simulator {
         	Collections.sort(blockObj.getBAList());
         	return blockObj;
         }).filter(block -> block.getBAList().size() >= 2);
+
+        long timer = (System.currentTimeMillis() - t0) / 1000;
         
         System.out.println("BLOCKS");
         for(Block block : blocks.collect()) {
         	System.out.println(block);
         }
+        System.out.println("Execution time: " + timer + " seconds");
 
         MetaBlocking mb = new MetaBlocking();
         
