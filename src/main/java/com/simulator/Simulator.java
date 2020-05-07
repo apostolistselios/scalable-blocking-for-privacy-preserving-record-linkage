@@ -24,7 +24,7 @@ public class Simulator {
 
     public static void main(String[] args) {
 
-        //TODO  See if we can do this with Datasets
+        //TODO  meta blocking
     	final int NUMBER_OF_BLOCKING_ATTRS = 3;
 
         Logger.getLogger("org.apache").setLevel(Level.WARN);
@@ -50,9 +50,6 @@ public class Simulator {
             return list;
         });
 
-        List<String> s1 = Arrays.asList("anthony", "lawrence", "victor", "zoe");
-        List<String> s2 = Arrays.asList("alex", "dorothy", "jonathan", "naomi");
-        List<String> s3 = Arrays.asList("alex", "john", "rhonda", "tristan");
         Dataset<Row> ReferenceSets = db.getReference_set();
 
         System.out.println("Data form DB loaded");
@@ -103,6 +100,7 @@ public class Simulator {
         JavaPairRDD<String, BlockingAttribute> AliceblocksRDD = AlicesRDDGrouped.flatMapToPair(rsb::combineBlocks);
         
         // combine the 2 different databases Alices and Bob.
+        //TODO Make sure that blocks have records from both databases
         JavaPairRDD<String, BlockingAttribute> CombinedBlocks = BobsblocksRDD.union(AliceblocksRDD);
         
         JavaPairRDD<String, Iterable<BlockingAttribute>> groupedBlocks = CombinedBlocks.groupByKey();
@@ -127,7 +125,14 @@ public class Simulator {
         MetaBlocking mb = new MetaBlocking();
         
         JavaPairRDD<String, Integer> matches = mb.predict(blocks).reduceByKey(Integer::sum);
-        
+
+        // check if we have matches
+//        JavaPairRDD<String, Integer> matches = mb.predict(blocks).reduceByKey(Integer::sum).filter(match ->{
+//            int sep = match._1().indexOf("-") ;
+//            String rec1 = match._1().substring(0,sep);
+//            String rec2 = match._1().substring(sep+1);
+//            return rec1.equals(rec2);
+//        } );
         System.out.println("MATCHES");
         for(Tuple2<String,Integer> match : matches.collect()) {
         	System.out.println(match);
