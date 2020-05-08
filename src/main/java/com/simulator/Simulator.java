@@ -55,13 +55,9 @@ public class Simulator {
         System.out.println("Data form DB loaded");
         long t0 = System.currentTimeMillis();
 
-        /*  data in Bob_DS is like
-            +------+---+-----+--------+
-            |  city| id| name| surname|
-            +------+---+-----+--------+
-            |warsaw| b1|kevin|anderson|
-            |london| b2| anne|    cobb|
-            +------+---+-----+--------+
+        /*  data in BobsRDD is like
+           [AT24345, ABEDE, ELILA, BURLINcTON]
+           [AA181290, ACO0TA, BARBRAA, BURLNGTON]
          */
 
         ReferenceSetBlocking rsb = new ReferenceSetBlocking();
@@ -73,7 +69,13 @@ public class Simulator {
         ArrayList<JavaPairRDD<String, String>> BobRDDs = new ArrayList<>();
         for (int i = 1; i <= NUMBER_OF_BLOCKING_ATTRS; i++)
             BobRDDs.add(rsb.mapBlockingAttributes(BobsRDD, i));
-        
+
+        /*  data in BobsRDD for attribute name is like
+           (AT24345,ABEDE)
+           (AA181290,ACO0TA)
+         */
+
+
         // classify for each
         // get the name_pairsRDD, last_nameRDD, etc. and classify it respectively with 1st reference set, 2nd, etc and add it into an ArrayList.
         ArrayList<JavaPairRDD<String, BlockingAttribute>> ClassifiedAlicesRDDs = new ArrayList<>();
@@ -91,20 +93,52 @@ public class Simulator {
                     , ReferenceSets.select(col("_c" + i)).as(Encoders.STRING()).collectAsList()
                     , String.valueOf(i)));
         }
-       
+        /*
+        data in BobsRDD for classified attribute name is like
+        (AT24345,BA(S1.2,null,13))
+        (AA181290,BA(S1.2,null,13))
+         */
+
+
         // data in rdds is like (recordID , BlockingAttribute(classID, score))
         JavaPairRDD<String, Iterable<BlockingAttribute>> BobsRDDGrouped =  ClassifiedBobsRDDs.get(0).union(ClassifiedBobsRDDs.get(1).union(ClassifiedBobsRDDs.get(2))).groupByKey() ;
         JavaPairRDD<String, Iterable<BlockingAttribute>> AlicesRDDGrouped =  ClassifiedAlicesRDDs.get(0).union(ClassifiedAlicesRDDs.get(1).union(ClassifiedAlicesRDDs.get(2))).groupByKey() ;
-        
+
+        /*
+        data in BobsRDD for grouped and classified records  is like
+        (AA181290,[BA(S1.2,null,13), BA(S2.1,null,14), BA(S3.1,null,15)])
+        (AT24345,[BA(S1.2,null,13), BA(S2.1,null,14), BA(S3.1,null,15)])
+         */
+
         JavaPairRDD<String, BlockingAttribute> BobsblocksRDD = BobsRDDGrouped.flatMapToPair(rsb::combineBlocks);
         JavaPairRDD<String, BlockingAttribute> AliceblocksRDD = AlicesRDDGrouped.flatMapToPair(rsb::combineBlocks);
-        
+        System.out.println("1");
+        BobsblocksRDD.collect().forEach(System.out::println);
+         /*
+         data in BobsblocksRDD  is like
+        (S1.2-S2.1,BA(S1.2,AA181290,13))
+        (S2.1-S3.1,BA(S2.1,AA181290,14))
+        (S3.1-S1.2,BA(S3.1,AA181290,15))
+        (S1.2-S2.1,BA(S1.2,AT24345,13))
+        (S2.1-S3.1,BA(S2.1,AT24345,14))
+        (S3.1-S1.2,BA(S3.1,AT24345,15))
+         */
+
         // combine the 2 different databases Alices and Bob.
         //TODO Make sure that blocks have records from both databases
         JavaPairRDD<String, BlockingAttribute> CombinedBlocks = BobsblocksRDD.union(AliceblocksRDD);
-        
+
+        // Data in CombinedBlocks are like  last BobsblocksRDD representation but includes records from both dbs
+
+
         JavaPairRDD<String, Iterable<BlockingAttribute>> groupedBlocks = CombinedBlocks.groupByKey();
-	        
+        /* Data in groupedBlocks is like
+        (S3.1-S1.2,[BA(S3.1,AA181290,15), BA(S3.1,AT24345,15), BA(S3.1,AA181290,15), BA(S3.1,AT24345,15)])
+        (S1.2-S2.1,[BA(S1.2,AA181290,13), BA(S1.2,AT24345,13), BA(S1.2,AA181290,13), BA(S1.2,AT24345,13)])
+        (S2.1-S3.1,[BA(S2.1,AA181290,14), BA(S2.1,AT24345,14), BA(S2.1,AA181290,14), BA(S2.1,AT24345,15)])
+        */
+
+
         JavaRDD<Block> blocks = groupedBlocks.map(block -> {
         	ArrayList<BlockingAttribute> baList = new ArrayList<>();
         	block._2().forEach(baList::add);
@@ -113,6 +147,7 @@ public class Simulator {
         	Collections.sort(blockObj.getBAList());
         	return blockObj;
         }).filter(block -> block.getBAList().size() >= 2);
+
 
         long timer = (System.currentTimeMillis() - t0) / 1000;
         
