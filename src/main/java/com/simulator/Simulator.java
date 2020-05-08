@@ -50,7 +50,7 @@ public class Simulator {
             return list;
         });
 
-        Dataset<Row> ReferenceSets = db.getReference_set();
+        Dataset<Row> ReferenceSets = db.getReferenceSet();
 
         System.out.println("Data form DB loaded");
         long t0 = System.currentTimeMillis();

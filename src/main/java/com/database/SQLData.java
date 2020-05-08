@@ -10,7 +10,7 @@ import static org.apache.spark.sql.functions.col;
 public class SQLData {
     private final Dataset<Row> alice;
     private final Dataset<Row> bob;
-    private final Dataset<Row> reference_set;
+    private final Dataset<Row> referenceSet;
     SparkSession spark;
 
     public SQLData(SparkSession spark, String size) {
@@ -20,7 +20,7 @@ public class SQLData {
                 .load("hdfs://master:9000/user/user/blocking/db/main_A_25p_" + size + ".csv").limit(2);
         this.bob = spark.read().format("csv")
                 .load("hdfs://master:9000/user/user/blocking/db/main_B_25p_" + size + ".csv").limit(2);
-        this.reference_set = spark.read().format("csv")
+        this.referenceSet = spark.read().format("csv")
                 .load("hdfs://master:9000/user/user/blocking/db/main_A_authors3.csv").limit(4);
     }
 
@@ -32,8 +32,8 @@ public class SQLData {
         return this.query(bob);
     }
 
-    public Dataset<Row> getReference_set() {
-        return reference_set;
+    public Dataset<Row> getReferenceSet() {
+        return referenceSet;
     }
 
     private Dataset<Row> query(Dataset<Row> ds){

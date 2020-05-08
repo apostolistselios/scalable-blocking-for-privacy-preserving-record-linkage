@@ -33,7 +33,7 @@ public class DatasetSimulator {
 
         Dataset<Row> Alice_DS = db.getAlice();
         Dataset<Row> Bob_DS = db.getBob();
-        Dataset<Row> ReferenceSets = db.getReference_set();
+        Dataset<Row> ReferenceSets = db.getReferenceSet();
 
         /*  data in Bob_DS is like
             +------+---+-----+--------+
