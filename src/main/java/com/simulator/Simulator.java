@@ -16,7 +16,13 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import scala.Tuple2;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Scanner;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static org.apache.spark.sql.functions.col;
 
@@ -34,17 +40,24 @@ public class Simulator {
 
         SQLData db = new SQLData(spark, "1k");
 
-        JavaRDD<List<String>> AlicesRDD = db.getAlice().toJavaRDD().map(row -> {
+        Dataset<Row> AliceDS = db.getAlice() ;
+
+        JavaRDD<List<String>> AlicesRDD = AliceDS.toJavaRDD().map(row -> {
             List<String> list = new ArrayList<>();
-            for (int i = 0; i < row.size(); i++) {
+            // change id to include source
+            list.add("A" + row.getString(0));
+            for (int i = 1; i < row.size(); i++) {
                 list.add(row.getString(i));
             }
             return list;
         });
 
-        JavaRDD<List<String>> BobsRDD = db.getBob().toJavaRDD().map(row -> {
+        Dataset<Row> BobsDS = db.getBob() ;
+        JavaRDD<List<String>> BobsRDD = BobsDS.toJavaRDD().map(row -> {
             List<String> list = new ArrayList<>();
-            for (int i = 0; i < row.size(); i++) {
+            // change id to include source
+            list.add("B" + row.getString(0));
+            for (int i = 1; i < row.size(); i++) {
                 list.add(row.getString(i));
             }
             return list;
@@ -112,8 +125,7 @@ public class Simulator {
 
         JavaPairRDD<String, BlockingAttribute> BobsblocksRDD = BobsRDDGrouped.flatMapToPair(rsb::combineBlocks);
         JavaPairRDD<String, BlockingAttribute> AliceblocksRDD = AlicesRDDGrouped.flatMapToPair(rsb::combineBlocks);
-        System.out.println("1");
-        BobsblocksRDD.collect().forEach(System.out::println);
+
          /*
          data in BobsblocksRDD  is like
         (S1.2-S2.1,BA(S1.2,AA181290,13))
@@ -126,41 +138,56 @@ public class Simulator {
 
         // combine the 2 different databases Alices and Bob.
         //TODO Make sure that blocks have records from both databases
-        JavaPairRDD<String, BlockingAttribute> CombinedBlocks = BobsblocksRDD.union(AliceblocksRDD);
 
+        // combine the 2 different databases Alices and Bob.
+        JavaPairRDD<String, Tuple2<Iterable<BlockingAttribute>, Iterable<BlockingAttribute>>> CombinedBlocks= BobsblocksRDD.cogroup(AliceblocksRDD) ;
+
+        //filter block which have only one source
+        JavaPairRDD<String, Tuple2<Iterable<BlockingAttribute>, Iterable<BlockingAttribute>>> filteredBlocks = CombinedBlocks.filter(block -> {
+            return block._2()._1().iterator().hasNext() && block._2()._2().iterator().hasNext() ;
+        });
+
+        /* Data in filteredBlocks is like
+        (S3.1-S1.2,([BA(S3.1,AA181290,15), BA(S3.1,AT24345,15)],[BA(S3.1,AA181290,15), BA(S3.1,AT24345,15)]))
+        (S1.2-S2.1,([BA(S1.2,AA181290,13), BA(S1.2,AT24345,13)],[BA(S1.2,AA181290,13), BA(S1.2,AT24345,13)]))
+        (S2.1-S3.1,([BA(S2.1,AA181290,14), BA(S2.1,AT24345,14)],[BA(S2.1,AA181290,14), BA(S2.1,AT24345,15)]))
+        (S3.1-S1.2,([BA(S3.1,AA181290,15), BA(S3.1,AT24345,15)],[BA(S3.1,AA181290,15), BA(S3.1,AT24345,15)]))
+        (S1.2-S2.1,([BA(S1.2,AA181290,13), BA(S1.2,AT24345,13)],[BA(S1.2,AA181290,13), BA(S1.2,AT24345,13)]))
+        (S2.1-S3.1,([BA(S2.1,AA181290,14), BA(S2.1,AT24345,14)],[BA(S2.1,AA181290,14), BA(S2.1,AT24345,15)]))
+        */
         // Data in CombinedBlocks are like  last BobsblocksRDD representation but includes records from both dbs
 
+        JavaRDD<Block> blocks = filteredBlocks.map(block -> {
+            ArrayList<BlockingAttribute> baList = (ArrayList<BlockingAttribute>) Stream.concat(StreamSupport.stream(block._2()._1().spliterator(),true),
+                    StreamSupport.stream(block._2()._2().spliterator(),true)).collect(Collectors.toList());
 
-        JavaPairRDD<String, Iterable<BlockingAttribute>> groupedBlocks = CombinedBlocks.groupByKey();
-        /* Data in groupedBlocks is like
-        (S3.1-S1.2,[BA(S3.1,AA181290,15), BA(S3.1,AT24345,15), BA(S3.1,AA181290,15), BA(S3.1,AT24345,15)])
-        (S1.2-S2.1,[BA(S1.2,AA181290,13), BA(S1.2,AT24345,13), BA(S1.2,AA181290,13), BA(S1.2,AT24345,13)])
-        (S2.1-S3.1,[BA(S2.1,AA181290,14), BA(S2.1,AT24345,14), BA(S2.1,AA181290,14), BA(S2.1,AT24345,15)])
+            Block blockObj = new Block(block._1(), baList);
+            blockObj.calculateRank();
+            Collections.sort(blockObj.getBAList());
+            return blockObj;
+        });
+
+        blocks.collect().forEach(System.out::println);
+        Dataset<Block> BlocksDS = spark.sqlContext().createDataset(blocks.rdd(), Encoders.bean(Block.class));
+
+        BlocksDS.show();
+        /* Data in blocks is like
+        [BLOCK: S3.1-S1.2 - Rank: 60 - [BA(S3.1,BAT24345,15), BA(S3.1,BAA181290,15), BA(S3.1,AAA181290,15), BA(S3.1,AAT24345,15)]]
+        [BLOCK: S1.2-S2.1 - Rank: 52 - [BA(S1.2,BAT24345,13), BA(S1.2,BAA181290,13), BA(S1.2,AAA181290,13), BA(S1.2,AAT24345,13)]]
+        [BLOCK: S2.1-S3.1 - Rank: 57 - [BA(S2.1,BAT24345,14), BA(S2.1,BAA181290,14), BA(S2.1,AAA181290,14), BA(S2.1,AAT24345,15)]]
         */
-
-
-        JavaRDD<Block> blocks = groupedBlocks.map(block -> {
-        	ArrayList<BlockingAttribute> baList = new ArrayList<>();
-        	block._2().forEach(baList::add);
-        	Block blockObj = new Block(block._1(), baList);
-        	blockObj.calculateRank();
-        	Collections.sort(blockObj.getBAList());
-        	return blockObj;
-        }).filter(block -> block.getBAList().size() >= 2);
-
 
         long timer = (System.currentTimeMillis() - t0) / 1000;
         
-        System.out.println("BLOCKS");
-        for(Block block : blocks.collect()) {
-        	System.out.println(block);
-        }
+//        System.out.println("BLOCKS");
+//        for(Block block : blocks.collect()) {
+//        	System.out.println(block);
+//        }
         System.out.println("Execution time: " + timer + " seconds");
 
-        MetaBlocking mb = new MetaBlocking();
-        
-        JavaPairRDD<String, Integer> matches = mb.predict(blocks).reduceByKey(Integer::sum);
 
+        MetaBlocking mb = new MetaBlocking();
+        JavaPairRDD<String, Integer> matches = mb.predict(blocks,2, AliceDS,BobsDS).reduceByKey(Integer::sum) ;
         // check if we have matches
 //        JavaPairRDD<String, Integer> matches = mb.predict(blocks).reduceByKey(Integer::sum).filter(match ->{
 //            int sep = match._1().indexOf("-") ;
@@ -168,10 +195,9 @@ public class Simulator {
 //            String rec2 = match._1().substring(sep+1);
 //            return rec1.equals(rec2);
 //        } );
+        System.out.println(matches);
         System.out.println("MATCHES");
-        for(Tuple2<String,Integer> match : matches.collect()) {
-        	System.out.println(match);
-        }
+        matches.collect().forEach(System.out::println);
 
         Scanner myscanner = new Scanner(System.in);
         myscanner.nextLine();
