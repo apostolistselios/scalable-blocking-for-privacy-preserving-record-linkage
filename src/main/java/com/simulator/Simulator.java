@@ -1,10 +1,10 @@
 package com.simulator;
 
 
-import com.algorithms.MetaBlocking;
 import com.algorithms.ReferenceSetBlocking;
 import com.database.SQLData;
 import com.utils.Block;
+import com.utils.BlockElement;
 import com.utils.BlockingAttribute;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
@@ -123,8 +123,8 @@ public class Simulator {
         (AT24345,[BA(S1.2,null,13), BA(S2.1,null,14), BA(S3.1,null,15)])
          */
 
-        JavaPairRDD<String, BlockingAttribute> BobsblocksRDD = BobsRDDGrouped.flatMapToPair(rsb::combineBlocks);
-        JavaPairRDD<String, BlockingAttribute> AliceblocksRDD = AlicesRDDGrouped.flatMapToPair(rsb::combineBlocks);
+        JavaPairRDD<String, BlockElement> BobsblocksRDD = BobsRDDGrouped.flatMapToPair(rsb::combineBlocks);
+        JavaPairRDD<String, BlockElement> AliceblocksRDD = AlicesRDDGrouped.flatMapToPair(rsb::combineBlocks);
 
          /*
          data in BobsblocksRDD  is like
@@ -140,10 +140,10 @@ public class Simulator {
         //TODO Make sure that blocks have records from both databases
 
         // combine the 2 different databases Alices and Bob.
-        JavaPairRDD<String, Tuple2<Iterable<BlockingAttribute>, Iterable<BlockingAttribute>>> CombinedBlocks= BobsblocksRDD.cogroup(AliceblocksRDD) ;
+        JavaPairRDD<String, Tuple2<Iterable<BlockElement>, Iterable<BlockElement>>> CombinedBlocks= BobsblocksRDD.cogroup(AliceblocksRDD) ;
 
         //filter block which have only one source
-        JavaPairRDD<String, Tuple2<Iterable<BlockingAttribute>, Iterable<BlockingAttribute>>> filteredBlocks = CombinedBlocks.filter(block -> {
+        JavaPairRDD<String, Tuple2<Iterable<BlockElement>, Iterable<BlockElement>>> filteredBlocks = CombinedBlocks.filter(block -> {
             return block._2()._1().iterator().hasNext() && block._2()._2().iterator().hasNext() ;
         });
 
@@ -158,7 +158,7 @@ public class Simulator {
         // Data in CombinedBlocks are like  last BobsblocksRDD representation but includes records from both dbs
 
         JavaRDD<Block> blocks = filteredBlocks.map(block -> {
-            ArrayList<BlockingAttribute> baList = (ArrayList<BlockingAttribute>) Stream.concat(StreamSupport.stream(block._2()._1().spliterator(),true),
+            ArrayList<BlockElement> baList = (ArrayList<BlockElement>) Stream.concat(StreamSupport.stream(block._2()._1().spliterator(),true),
                     StreamSupport.stream(block._2()._2().spliterator(),true)).collect(Collectors.toList());
 
             Block blockObj = new Block(block._1(), baList);
@@ -167,10 +167,6 @@ public class Simulator {
             return blockObj;
         });
 
-        blocks.collect().forEach(System.out::println);
-        Dataset<Block> BlocksDS = spark.sqlContext().createDataset(blocks.rdd(), Encoders.bean(Block.class));
-
-        BlocksDS.show();
         /* Data in blocks is like
         [BLOCK: S3.1-S1.2 - Rank: 60 - [BA(S3.1,BAT24345,15), BA(S3.1,BAA181290,15), BA(S3.1,AAA181290,15), BA(S3.1,AAT24345,15)]]
         [BLOCK: S1.2-S2.1 - Rank: 52 - [BA(S1.2,BAT24345,13), BA(S1.2,BAA181290,13), BA(S1.2,AAA181290,13), BA(S1.2,AAT24345,13)]]
@@ -185,9 +181,50 @@ public class Simulator {
 //        }
         System.out.println("Execution time: " + timer + " seconds");
 
+        List<Block> blockList = blocks.collect() ;
+        ArrayList<Tuple2<String, Integer>> matches = new ArrayList<>();
 
-        MetaBlocking mb = new MetaBlocking();
-        JavaPairRDD<String, Integer> matches = mb.predict(blocks,2, AliceDS,BobsDS).reduceByKey(Integer::sum) ;
+        int window = 2 ;
+        for (Block block: blockList){
+            ArrayList<BlockElement> baList = block.getBAList();
+
+            for(int i = 1 ; i < baList.size() ; i ++ ) {
+                String record1 = baList.get(i).getRecordID();
+                for(int j = i - 1 ; j >= i - window && j >=0 ; j--) {
+                    String record2 = baList.get(j).getRecordID();
+                    char firstcharOfrecord1 = record1.charAt(0) ;
+                    char firstcharOfrecord2 = record2.charAt(0) ;
+
+                    if(firstcharOfrecord1 != firstcharOfrecord2){
+
+                        Row record1Attributes ;
+                        Row record2Attributes ;
+                        if(firstcharOfrecord1 == 'A') {
+                            record1Attributes = AliceDS.filter(AliceDS.col("id").equalTo(record1.substring(1))).first();
+                            record2Attributes = BobsDS.filter(BobsDS.col("id").equalTo(record2.substring(1))).first();
+                        }
+                        else{
+                            record1Attributes = BobsDS.filter(BobsDS.col("id").equalTo(record1.substring(1))).first();
+                            record2Attributes = AliceDS.filter(AliceDS.col("id").equalTo(record2.substring(1))).first();
+                        }
+
+                        // TODO  Bloom Filters 
+                        if (record1Attributes.getString(0).equals(record2Attributes.getString(0)))
+                            matches.add(new Tuple2<String, Integer>(record1Attributes.getString(0), 1)) ;
+
+                        System.out.println(record1Attributes.getString(1));
+
+                    }
+
+
+
+                }
+            }
+        }
+
+        matches.forEach(System.out::println);
+        //MetaBlocking mb = new MetaBlocking();
+        //JavaPairRDD<String, Integer> matches = mb.predict(blocks,2, AliceDS,BobsDS).reduceByKey(Integer::sum) ;
         // check if we have matches
 //        JavaPairRDD<String, Integer> matches = mb.predict(blocks).reduceByKey(Integer::sum).filter(match ->{
 //            int sep = match._1().indexOf("-") ;
@@ -195,9 +232,9 @@ public class Simulator {
 //            String rec2 = match._1().substring(sep+1);
 //            return rec1.equals(rec2);
 //        } );
-        System.out.println(matches);
-        System.out.println("MATCHES");
-        matches.collect().forEach(System.out::println);
+//        System.out.println(matches);
+//        System.out.println("MATCHES");
+//        matches.collect().forEach(System.out::println);
 
         Scanner myscanner = new Scanner(System.in);
         myscanner.nextLine();

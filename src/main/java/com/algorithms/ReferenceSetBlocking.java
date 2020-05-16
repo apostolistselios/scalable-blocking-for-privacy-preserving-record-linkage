@@ -1,6 +1,7 @@
 package com.algorithms;
 
 import com.utils.BinarySearch;
+import com.utils.BlockElement;
 import com.utils.BlockingAttribute;
 import org.apache.commons.text.similarity.LevenshteinDistance;
 import org.apache.spark.api.java.JavaPairRDD;
@@ -91,8 +92,8 @@ public class ReferenceSetBlocking implements Serializable {
         }, Encoders.bean(BlockingAttribute.class));
     }
     
-    public Iterator<Tuple2<String, BlockingAttribute>> combineBlocks(Tuple2<String, Iterable<BlockingAttribute>> baTuple) {
-        ArrayList<Tuple2<String,BlockingAttribute>> blocks = new ArrayList<>();
+    public Iterator<Tuple2<String, BlockElement>> combineBlocks(Tuple2<String, Iterable<BlockingAttribute>> baTuple) {
+        ArrayList<Tuple2<String, BlockElement>> blocks = new ArrayList<>();
 
         Iterator<BlockingAttribute> it = baTuple._2().iterator();
         BlockingAttribute currentBA = it.next();
@@ -104,12 +105,12 @@ public class ReferenceSetBlocking implements Serializable {
                 nextBA = it.next();
                 blockID = currentBA.getClassID() + "-" + nextBA.getClassID();
                 currentBA.setRecordID(baTuple._1());
-                blocks.add(new Tuple2<>(blockID, currentBA));
+                blocks.add(new Tuple2<>(blockID, new BlockElement(currentBA.getRecordID(),currentBA.getScore())));
                 currentBA = nextBA;
             } else {
                 blockID = currentBA.getClassID() + "-" + firstBA.getClassID();
                 currentBA.setRecordID(baTuple._1());
-                blocks.add(new Tuple2<>(blockID, currentBA));
+                blocks.add(new Tuple2<>(blockID, new BlockElement(currentBA.getRecordID(),currentBA.getScore())));
                 break;
             }
         }

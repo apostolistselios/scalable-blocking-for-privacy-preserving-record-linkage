@@ -1,7 +1,7 @@
 package com.algorithms;
 
 import com.utils.Block;
-import com.utils.BlockingAttribute;
+import com.utils.BlockElement;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.function.PairFlatMapFunction;
@@ -24,7 +24,7 @@ public class MetaBlocking implements Serializable {
 			private static final long serialVersionUID = 1L;
 
 			public Iterator<Tuple2<String, Integer>> call(Block block) {
-				ArrayList<BlockingAttribute> baList = block.getBAList();
+				ArrayList<BlockElement> baList = block.getBAList();
 				ArrayList<Tuple2<String, Integer>> matches = new ArrayList<>();
 
 
