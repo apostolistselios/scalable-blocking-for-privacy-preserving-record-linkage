@@ -273,7 +273,7 @@ public class Simulator {
 
         Set<String> matchSet = new HashSet<String>(matches);
 
-        System.out.println("Recall : " + (double) matchSet.size() / 50.0 );
+        System.out.println("Possible Recall ( it may go above 1 ) : " + (double) matchSet.size() / (100.0  * 0.25) );
             //MetaBlocking mb = new MetaBlocking();
             //JavaPairRDD<String, Integer> matches = mb.predict(blocks,2, AliceDS,BobsDS).reduceByKey(Integer::sum) ;
             // check if we have matches
