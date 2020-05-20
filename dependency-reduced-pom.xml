@@ -31,6 +31,7 @@
             <configuration>
               <artifactSet>
                 <includes>
+                  <include>info.debatty:java-string-similarity</include>
                   <include>org.apache.commons:commons-text</include>
                 </includes>
               </artifactSet>
