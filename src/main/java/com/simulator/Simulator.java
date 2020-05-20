@@ -175,16 +175,16 @@ public class Simulator {
         [BLOCK: S2.1-S3.1 - Rank: 57 - [BA(S2.1,BAT24345,14), BA(S2.1,BAA181290,14), BA(S2.1,AAA181290,14), BA(S2.1,AAT24345,15)]]
         */
 
-        long timer = (System.currentTimeMillis() - t0) / 1000;
+
 
 //        System.out.println("BLOCKS");
 //        for(Block block : blocks.collect()) {
 //        	System.out.println(block);
 //        }
-        System.out.println("Execution time: " + timer + " seconds");
+
 
         List<Block> blockList = blocks.collect();
-        ArrayList<String> matches = new ArrayList<>();
+        List<String> matches = new ArrayList<>();
 
         int window = 2;
         for (Block block : blockList) {
@@ -239,7 +239,7 @@ public class Simulator {
                             String DiceRecord1 = Arrays.toString(bloom1Byte.toByteArray());
                             String DiceRecord2 = Arrays.toString(bloom2Byte.toByteArray());
                             SorensenDice Similiarity = new SorensenDice();
-                            double THRESHOLD = 0.5;
+                            double THRESHOLD = 0.4;
                             if (Similiarity.similarity(DiceRecord1, DiceRecord2) < THRESHOLD) {
                                 match = false;
                                 break;
@@ -248,17 +248,32 @@ public class Simulator {
                             }
                             // TODO HASHMAP FOR RECORDS MATCHES BLOCK.
                             // WINDOW SIZE IF MATCH JUMP 2.
-                            if (match) {
-                                matches.add(record1Attributes.getString(0) + " " + record2Attributes.getString(0) + " MATCH.");
-                            }
                         }
+                        if (match)
+                            matches.add(record1Attributes.getString(0) + " " + record2Attributes.getString(0) );
 
 
+                        }
                     }
                 }
             }
 
-            matches.forEach(System.out::println);
+        long timer = (System.currentTimeMillis() - t0) / 1000;
+
+        System.out.println("Execution time: " + timer + " seconds");
+
+        matches =  matches.stream().filter(s -> {
+            int sep = s.indexOf(" ") ;
+            String rec1 = s.substring(0,sep);
+            String rec2 = s.substring(sep+1);
+            return rec1.equals(rec2);
+        }).collect(Collectors.toList());
+
+
+
+        Set<String> matchSet = new HashSet<String>(matches);
+
+        System.out.println("Recall : " + (double) matchSet.size() / 50.0 );
             //MetaBlocking mb = new MetaBlocking();
             //JavaPairRDD<String, Integer> matches = mb.predict(blocks,2, AliceDS,BobsDS).reduceByKey(Integer::sum) ;
             // check if we have matches
@@ -272,12 +287,13 @@ public class Simulator {
 //        System.out.println("MATCHES");
 //        matches.collect().forEach(System.out::println);
 
-            Scanner myscanner = new Scanner(System.in);
-            myscanner.nextLine();
-            myscanner.close();
+//            Scanner myscanner = new Scanner(System.in);
+//            myscanner.nextLine();
+//            myscanner.close();
 
-            spark.close();
-        }
+        spark.close();
+
+
 
 
     }

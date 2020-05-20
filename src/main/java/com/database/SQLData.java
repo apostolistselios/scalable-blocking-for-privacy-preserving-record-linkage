@@ -17,11 +17,11 @@ public class SQLData {
         // Get SparkSession from Main
         this.spark = spark;
         this.alice = spark.read().format("csv")
-                .load("hdfs://master:9000/user/user/blocking/db/main_A_25p_" + size + ".csv").limit(2);
+                .load("hdfs://master:9000/user/user/blocking/db/main_A_25p_" + size + ".csv").limit(50);
         this.bob = spark.read().format("csv")
-                .load("hdfs://master:9000/user/user/blocking/db/main_B_25p_" + size + ".csv").limit(2);
+                .load("hdfs://master:9000/user/user/blocking/db/main_B_25p_" + size + ".csv").limit(50);
         this.referenceSet = spark.read().format("csv")
-                .load("hdfs://master:9000/user/user/blocking/db/main_A_authors3.csv").limit(4);
+                .load("hdfs://master:9000/user/user/blocking/db/main_A_authors3.csv").limit(5);
     }
 
     public Dataset<Row> getAlice() {
