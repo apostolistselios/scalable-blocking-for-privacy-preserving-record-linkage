@@ -174,15 +174,70 @@ public class Simulator {
         [BLOCK: S1.2-S2.1 - Rank: 52 - [BA(S1.2,BAT24345,13), BA(S1.2,BAA181290,13), BA(S1.2,AAA181290,13), BA(S1.2,AAT24345,13)]]
         [BLOCK: S2.1-S3.1 - Rank: 57 - [BA(S2.1,BAT24345,14), BA(S2.1,BAA181290,14), BA(S2.1,AAA181290,14), BA(S2.1,AAT24345,15)]]
         */
-
-
-
+        //define the schema for Blocks dataset
+//        StructType schema = new StructType();
+//        schema = schema.add("recordID", DataTypes.StringType, false);
+//        schema = schema.add("bloom", DataTypes.StringType, false);
+//        ExpressionEncoder<Row> encoder = RowEncoder.apply(schema);
+//
+//        JavaRDD<Row> AlicesRDDblooms =  AlicesRDD.map(row -> {
+//            // join all attribute
+//            List<String> attributesBigrams = Bigrams.ngrams(2, String.join("",row.subList(1,4))) ;
+//            // create bloom filter
+//            BloomFilter bf = BloomFilter.create(attributesBigrams.size(),900);
+//
+//            // put bigrams in bloom filters
+//            for(String bigram : attributesBigrams)
+//                bf.putString(bigram);
+//
+//            // reformat bloom filter as string
+//            ByteArrayOutputStream bloomByte = new ByteArrayOutputStream();
+//            try {
+//                bf.writeTo(bloomByte);
+//            } catch (IOException e) {
+//                e.printStackTrace();
+//            }
+//
+//            return RowFactory.create(row.get(0) ,BitSet.valueOf(bloomByte.toByteArray()).toString()) ;
+//        }) ;
+//
+//        Dataset<Row> AliceBloomsDS = spark.createDataset(AlicesRDDblooms.rdd(),encoder) ;
+//
+//        AliceBloomsDS.show(1,false);
+//
+//
+//        JavaRDD<Row> BobRDDblooms =  BobsRDD.map(row -> {
+//            // join all attribute
+//            List<String> attributesBigrams = Bigrams.ngrams(2, String.join("",row.subList(1,4))) ;
+//            // create bloom filter
+//            BloomFilter bf = BloomFilter.create(attributesBigrams.size(),900);
+//
+//            // put bigrams in bloom filters
+//            for(String bigram : attributesBigrams)
+//                bf.putString(bigram);
+//
+//
+//            // reformat bloom filter as string
+//            ByteArrayOutputStream bloomByte = new ByteArrayOutputStream();
+//            try {
+//                bf.writeTo(bloomByte);
+//            } catch (IOException e) {
+//                e.printStackTrace();
+//            }
+//
+//            return RowFactory.create(row.get(0) ,BitSet.valueOf(bloomByte.toByteArray()).toString()) ;
+//        }) ;
+//
+//        Dataset<Row> BobsBloomsDS = spark.createDataset(BobRDDblooms.rdd(),encoder) ;
+//
+//        BobsBloomsDS.show(1,false);
+//
 //        System.out.println("BLOCKS");
 //        for(Block block : blocks.collect()) {
 //        	System.out.println(block);
 //        }
-
-
+//
+//
         List<Block> blockList = blocks.collect();
         List<String> matches = new ArrayList<>();
 
@@ -209,7 +264,7 @@ public class Simulator {
                             record2Attributes = AliceDS.filter(AliceDS.col("id").equalTo(record2.substring(1))).first();
                         }
 
-                        // TODO  Bloom Filters 
+                        // TODO  Bloom Filters
                         List<List<String>> BigramsAttributesRecord1 = new ArrayList<>();
                         List<List<String>> BigramsAttributesRecord2 = new ArrayList<>();
 //                        List<BloomFilter> BloomFiltersRecord1 = new ArrayList<BloomFilter>();
@@ -236,8 +291,8 @@ public class Simulator {
                             } catch (IOException e) {
                                 e.printStackTrace();
                             }
-                            String DiceRecord1 = Arrays.toString(bloom1Byte.toByteArray());
-                            String DiceRecord2 = Arrays.toString(bloom2Byte.toByteArray());
+                            String DiceRecord1 = BitSet.valueOf(bloom1Byte.toByteArray()).toString();
+                            String DiceRecord2 = BitSet.valueOf(bloom2Byte.toByteArray()).toString();
                             SorensenDice Similiarity = new SorensenDice();
                             double THRESHOLD = 0.4;
                             if (Similiarity.similarity(DiceRecord1, DiceRecord2) < THRESHOLD) {
@@ -261,7 +316,7 @@ public class Simulator {
         long timer = (System.currentTimeMillis() - t0) / 1000;
 
         System.out.println("Execution time: " + timer + " seconds");
-
+        int matcesSize = matches.size();
         matches =  matches.stream().filter(s -> {
             int sep = s.indexOf(" ") ;
             String rec1 = s.substring(0,sep);
@@ -272,20 +327,14 @@ public class Simulator {
 
 
         Set<String> matchSet = new HashSet<String>(matches);
-
+        System.out.println(matcesSize) ;
         System.out.println("Possible Recall ( it may go above 1 ) : " + (double) matchSet.size() / (100.0  * 0.25) );
-            //MetaBlocking mb = new MetaBlocking();
-            //JavaPairRDD<String, Integer> matches = mb.predict(blocks,2, AliceDS,BobsDS).reduceByKey(Integer::sum) ;
-            // check if we have matches
-//        JavaPairRDD<String, Integer> matches = mb.predict(blocks).reduceByKey(Integer::sum).filter(match ->{
-//            int sep = match._1().indexOf("-") ;
-//            String rec1 = match._1().substring(0,sep);
-//            String rec2 = match._1().substring(sep+1);
-//            return rec1.equals(rec2);
-//        } );
-//        System.out.println(matches);
-//        System.out.println("MATCHES");
-//        matches.collect().forEach(System.out::println);
+//            MetaBlocking mb = new MetaBlocking();
+//            JavaPairRDD<String, Integer> matches = mb.predict(blocks,2, AliceDS,BobsDS).reduceByKey(Integer::sum) ;
+//             check if we have matches
+
+        System.out.println(matches);
+        System.out.println("MATCHES");
 
 //            Scanner myscanner = new Scanner(System.in);
 //            myscanner.nextLine();
