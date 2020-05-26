@@ -11,14 +11,19 @@ import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
-import org.apache.spark.sql.*;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder;
 import org.apache.spark.sql.catalyst.encoders.RowEncoder;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import scala.Tuple2;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -162,11 +167,12 @@ public class Simulator {
         //define the schema for blooms dataset
         StructType bloomsFilterSchema = new StructType();
         bloomsFilterSchema = bloomsFilterSchema.add("recordID", DataTypes.StringType, false);
-        bloomsFilterSchema = bloomsFilterSchema.add("bloom", DataTypes.StringType, false);
+        bloomsFilterSchema = bloomsFilterSchema.add("bloom", DataTypes.BinaryType , false);
         ExpressionEncoder<Row> bloomsFilterEncoder = RowEncoder.apply(bloomsFilterSchema);
 
         Dataset<Row> AliceBloomsDS = spark.createDataset(AlicesRDD.map(mb::createBloomFilters).rdd(),bloomsFilterEncoder) ;
         Dataset<Row> BobsBloomsDS = spark.createDataset(BobsRDD.map(mb::createBloomFilters).rdd(),bloomsFilterEncoder) ;
+
 
 
         //define the schema for possible matches dataset
@@ -189,8 +195,10 @@ public class Simulator {
                 .join(BobsBloomsDS,possibleMatchesDS.col("record2").equalTo(BobsBloomsDS.col("recordID")))
                 .drop("recordID").withColumnRenamed("bloom","bloom2") ;
 
-        possibleMatchesWithBloomsDS.show(10);
 
+
+
+        possibleMatchesWithBloomsDS.show(10);
         long timer = (System.currentTimeMillis() - t0) / 1000;
 
         System.out.println("Execution time: " + timer + " seconds");

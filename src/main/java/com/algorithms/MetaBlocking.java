@@ -11,7 +11,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.Iterator;
 import java.util.List;
 
@@ -67,6 +66,6 @@ public class MetaBlocking implements Serializable {
 			e.printStackTrace();
 		}
 
-		return RowFactory.create(record.get(0), BitSet.valueOf(bloomByte.toByteArray()).toString());
+		return RowFactory.create(record.get(0), bloomByte.toByteArray() );
 	}
 }
