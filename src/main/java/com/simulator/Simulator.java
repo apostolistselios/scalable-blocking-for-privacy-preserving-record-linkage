@@ -1,26 +1,23 @@
 package com.simulator;
 
 
+import com.algorithms.MetaBlocking;
 import com.algorithms.ReferenceSetBlocking;
 import com.database.SQLData;
-import com.utils.Bigrams;
 import com.utils.Block;
 import com.utils.BlockElement;
 import com.utils.BlockingAttribute;
-import info.debatty.java.stringsimilarity.SorensenDice;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Encoders;
-import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SparkSession;
-import org.apache.spark.util.sketch.BloomFilter;
+import org.apache.spark.sql.*;
+import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder;
+import org.apache.spark.sql.catalyst.encoders.RowEncoder;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.StructType;
 import scala.Tuple2;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -42,9 +39,7 @@ public class Simulator {
 
         SQLData db = new SQLData(spark, "1k");
 
-        Dataset<Row> AliceDS = db.getAlice();
-
-        JavaRDD<List<String>> AlicesRDD = AliceDS.toJavaRDD().map(row -> {
+        JavaRDD<List<String>> AlicesRDD = db.getAlice().toJavaRDD().map(row -> {
             List<String> list = new ArrayList<>();
             // change id to include source
             list.add("A" + row.getString(0));
@@ -54,8 +49,7 @@ public class Simulator {
             return list;
         });
 
-        Dataset<Row> BobsDS = db.getBob();
-        JavaRDD<List<String>> BobsRDD = BobsDS.toJavaRDD().map(row -> {
+        JavaRDD<List<String>> BobsRDD = db.getBob().toJavaRDD().map(row -> {
             List<String> list = new ArrayList<>();
             // change id to include source
             list.add("B" + row.getString(0));
@@ -131,11 +125,6 @@ public class Simulator {
          /*
          data in BobsblocksRDD  is like
         (S1.2-S2.1,BA(S1.2,AA181290,13))
-        (S2.1-S3.1,BA(S2.1,AA181290,14))
-        (S3.1-S1.2,BA(S3.1,AA181290,15))
-        (S1.2-S2.1,BA(S1.2,AT24345,13))
-        (S2.1-S3.1,BA(S2.1,AT24345,14))
-        (S3.1-S1.2,BA(S3.1,AT24345,15))
          */
 
         // combine the 2 different databases Alices and Bob.
@@ -151,11 +140,6 @@ public class Simulator {
 
         /* Data in filteredBlocks is like
         (S3.1-S1.2,([BA(S3.1,AA181290,15), BA(S3.1,AT24345,15)],[BA(S3.1,AA181290,15), BA(S3.1,AT24345,15)]))
-        (S1.2-S2.1,([BA(S1.2,AA181290,13), BA(S1.2,AT24345,13)],[BA(S1.2,AA181290,13), BA(S1.2,AT24345,13)]))
-        (S2.1-S3.1,([BA(S2.1,AA181290,14), BA(S2.1,AT24345,14)],[BA(S2.1,AA181290,14), BA(S2.1,AT24345,15)]))
-        (S3.1-S1.2,([BA(S3.1,AA181290,15), BA(S3.1,AT24345,15)],[BA(S3.1,AA181290,15), BA(S3.1,AT24345,15)]))
-        (S1.2-S2.1,([BA(S1.2,AA181290,13), BA(S1.2,AT24345,13)],[BA(S1.2,AA181290,13), BA(S1.2,AT24345,13)]))
-        (S2.1-S3.1,([BA(S2.1,AA181290,14), BA(S2.1,AT24345,14)],[BA(S2.1,AA181290,14), BA(S2.1,AT24345,15)]))
         */
         // Data in CombinedBlocks are like  last BobsblocksRDD representation but includes records from both dbs
 
@@ -171,170 +155,63 @@ public class Simulator {
 
         /* Data in blocks is like
         [BLOCK: S3.1-S1.2 - Rank: 60 - [BA(S3.1,BAT24345,15), BA(S3.1,BAA181290,15), BA(S3.1,AAA181290,15), BA(S3.1,AAT24345,15)]]
-        [BLOCK: S1.2-S2.1 - Rank: 52 - [BA(S1.2,BAT24345,13), BA(S1.2,BAA181290,13), BA(S1.2,AAA181290,13), BA(S1.2,AAT24345,13)]]
-        [BLOCK: S2.1-S3.1 - Rank: 57 - [BA(S2.1,BAT24345,14), BA(S2.1,BAA181290,14), BA(S2.1,AAA181290,14), BA(S2.1,AAT24345,15)]]
         */
-        //define the schema for Blocks dataset
-//        StructType schema = new StructType();
-//        schema = schema.add("recordID", DataTypes.StringType, false);
-//        schema = schema.add("bloom", DataTypes.StringType, false);
-//        ExpressionEncoder<Row> encoder = RowEncoder.apply(schema);
-//
-//        JavaRDD<Row> AlicesRDDblooms =  AlicesRDD.map(row -> {
-//            // join all attribute
-//            List<String> attributesBigrams = Bigrams.ngrams(2, String.join("",row.subList(1,4))) ;
-//            // create bloom filter
-//            BloomFilter bf = BloomFilter.create(attributesBigrams.size(),900);
-//
-//            // put bigrams in bloom filters
-//            for(String bigram : attributesBigrams)
-//                bf.putString(bigram);
-//
-//            // reformat bloom filter as string
-//            ByteArrayOutputStream bloomByte = new ByteArrayOutputStream();
-//            try {
-//                bf.writeTo(bloomByte);
-//            } catch (IOException e) {
-//                e.printStackTrace();
-//            }
-//
-//            return RowFactory.create(row.get(0) ,BitSet.valueOf(bloomByte.toByteArray()).toString()) ;
-//        }) ;
-//
-//        Dataset<Row> AliceBloomsDS = spark.createDataset(AlicesRDDblooms.rdd(),encoder) ;
-//
-//        AliceBloomsDS.show(1,false);
-//
-//
-//        JavaRDD<Row> BobRDDblooms =  BobsRDD.map(row -> {
-//            // join all attribute
-//            List<String> attributesBigrams = Bigrams.ngrams(2, String.join("",row.subList(1,4))) ;
-//            // create bloom filter
-//            BloomFilter bf = BloomFilter.create(attributesBigrams.size(),900);
-//
-//            // put bigrams in bloom filters
-//            for(String bigram : attributesBigrams)
-//                bf.putString(bigram);
-//
-//
-//            // reformat bloom filter as string
-//            ByteArrayOutputStream bloomByte = new ByteArrayOutputStream();
-//            try {
-//                bf.writeTo(bloomByte);
-//            } catch (IOException e) {
-//                e.printStackTrace();
-//            }
-//
-//            return RowFactory.create(row.get(0) ,BitSet.valueOf(bloomByte.toByteArray()).toString()) ;
-//        }) ;
-//
-//        Dataset<Row> BobsBloomsDS = spark.createDataset(BobRDDblooms.rdd(),encoder) ;
-//
-//        BobsBloomsDS.show(1,false);
-//
-//        System.out.println("BLOCKS");
-//        for(Block block : blocks.collect()) {
-//        	System.out.println(block);
-//        }
-//
-//
-        List<Block> blockList = blocks.collect();
-        List<String> matches = new ArrayList<>();
+        MetaBlocking mb = new MetaBlocking();
+
+        // Create datasets with records' blooms filters
+        //define the schema for blooms dataset
+        StructType bloomsFilterSchema = new StructType();
+        bloomsFilterSchema = bloomsFilterSchema.add("recordID", DataTypes.StringType, false);
+        bloomsFilterSchema = bloomsFilterSchema.add("bloom", DataTypes.StringType, false);
+        ExpressionEncoder<Row> bloomsFilterEncoder = RowEncoder.apply(bloomsFilterSchema);
+
+        Dataset<Row> AliceBloomsDS = spark.createDataset(AlicesRDD.map(mb::createBloomFilters).rdd(),bloomsFilterEncoder) ;
+        Dataset<Row> BobsBloomsDS = spark.createDataset(BobsRDD.map(mb::createBloomFilters).rdd(),bloomsFilterEncoder) ;
+
+
+        //define the schema for possible matches dataset
+        StructType possiblesMatchesSchema = new StructType();
+        // this is the column for records from Alice's database
+        possiblesMatchesSchema = possiblesMatchesSchema.add("record1", DataTypes.StringType, false);
+        // this is the column for records from Bob;s database
+        possiblesMatchesSchema = possiblesMatchesSchema.add("record2", DataTypes.StringType, false);
+        ExpressionEncoder<Row> possibleMatchesEncoder = RowEncoder.apply(possiblesMatchesSchema);
 
         int window = 2;
-        for (Block block : blockList) {
-            ArrayList<BlockElement> baList = block.getBAList();
 
-            for (int i = 1; i < baList.size(); i++) {
-                String record1 = baList.get(i).getRecordID();
-                for (int j = i - 1; j >= i - window && j >= 0; j--) {
-                    String record2 = baList.get(j).getRecordID();
-                    char firstcharOfrecord1 = record1.charAt(0);
-                    char firstcharOfrecord2 = record2.charAt(0);
+        // create possibleMatchesDS that contains only unique rows
+        Dataset<Row> possibleMatchesDS = spark.createDataset(blocks.flatMap(block -> mb.createPossibleMatches(block,window)).rdd(),
+                possibleMatchesEncoder).distinct() ;
 
-                    if (firstcharOfrecord1 != firstcharOfrecord2) {
+        Dataset<Row> possibleMatchesWithBloomsDS = possibleMatchesDS.join(AliceBloomsDS,
+                possibleMatchesDS.col("record1").equalTo(AliceBloomsDS.col("recordID")))
+                .drop("recordID").withColumnRenamed("bloom","bloom1")
+                .join(BobsBloomsDS,possibleMatchesDS.col("record2").equalTo(BobsBloomsDS.col("recordID")))
+                .drop("recordID").withColumnRenamed("bloom","bloom2") ;
 
-                        Row record1Attributes;
-                        Row record2Attributes;
-                        if (firstcharOfrecord1 == 'A') {
-                            record1Attributes = AliceDS.filter(AliceDS.col("id").equalTo(record1.substring(1))).first();
-                            record2Attributes = BobsDS.filter(BobsDS.col("id").equalTo(record2.substring(1))).first();
-                        } else {
-                            record1Attributes = BobsDS.filter(BobsDS.col("id").equalTo(record1.substring(1))).first();
-                            record2Attributes = AliceDS.filter(AliceDS.col("id").equalTo(record2.substring(1))).first();
-                        }
-
-                        // TODO  Bloom Filters
-                        List<List<String>> BigramsAttributesRecord1 = new ArrayList<>();
-                        List<List<String>> BigramsAttributesRecord2 = new ArrayList<>();
-//                        List<BloomFilter> BloomFiltersRecord1 = new ArrayList<BloomFilter>();
-//                        List<BloomFilter> BloomFiltersRecord2 = new ArrayList<BloomFilter>();
-                        boolean match = false;
-                        for (int k = 1; k < record1Attributes.size(); k++) {
-                            String temp = record1Attributes.getString(k);
-                            String temp2 = record2Attributes.getString(k);
-                            BigramsAttributesRecord1.add(Bigrams.ngrams(2, temp));
-                            BigramsAttributesRecord2.add(Bigrams.ngrams(2, temp2));
-                            BloomFilter bloom1 = BloomFilter.create(BigramsAttributesRecord1.get(k - 1).size());
-                            BloomFilter bloom2 = BloomFilter.create(BigramsAttributesRecord2.get(k - 1).size());
-                            for (String bigram : BigramsAttributesRecord1.get(k - 1)) {
-                                bloom1.putString(bigram);
-                            }
-                            for (String bigram : BigramsAttributesRecord2.get(k - 1)) {
-                                bloom2.putString(bigram);
-                            }
-                            ByteArrayOutputStream bloom1Byte = new ByteArrayOutputStream();
-                            ByteArrayOutputStream bloom2Byte = new ByteArrayOutputStream();
-                            try {
-                                bloom1.writeTo(bloom1Byte);
-                                bloom2.writeTo(bloom2Byte);
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                            }
-                            String DiceRecord1 = BitSet.valueOf(bloom1Byte.toByteArray()).toString();
-                            String DiceRecord2 = BitSet.valueOf(bloom2Byte.toByteArray()).toString();
-                            SorensenDice Similiarity = new SorensenDice();
-                            double THRESHOLD = 0.4;
-                            if (Similiarity.similarity(DiceRecord1, DiceRecord2) < THRESHOLD) {
-                                match = false;
-                                break;
-                            } else {
-                                match = true;
-                            }
-                            // TODO HASHMAP FOR RECORDS MATCHES BLOCK.
-                            // WINDOW SIZE IF MATCH JUMP 2.
-                        }
-                        if (match)
-                            matches.add(record1Attributes.getString(0) + " " + record2Attributes.getString(0) );
-
-
-                        }
-                    }
-                }
-            }
+        possibleMatchesWithBloomsDS.show(10);
 
         long timer = (System.currentTimeMillis() - t0) / 1000;
 
         System.out.println("Execution time: " + timer + " seconds");
-        int matcesSize = matches.size();
-        matches =  matches.stream().filter(s -> {
-            int sep = s.indexOf(" ") ;
-            String rec1 = s.substring(0,sep);
-            String rec2 = s.substring(sep+1);
-            return rec1.equals(rec2);
-        }).collect(Collectors.toList());
 
+//        Set<String> prematchSet = new HashSet<String>(matches);
+//
+//        matches =  matches.stream().filter(s -> {
+//            int sep = s.indexOf(" ") ;
+//            String rec1 = s.substring(0,sep);
+//            String rec2 = s.substring(sep+1);
+//            return rec1.equals(rec2);
+//        }).collect(Collectors.toList());
+//
+//
+//
+//        Set<String> matchSet = new HashSet<String>(matches);
+//        System.out.println(prematchSet.size()) ;
+//        System.out.println("Possible Recall ( it may go above 1 ) : " + (double) matchSet.size() / (100.0  * 0.25) );
 
-
-        Set<String> matchSet = new HashSet<String>(matches);
-        System.out.println(matcesSize) ;
-        System.out.println("Possible Recall ( it may go above 1 ) : " + (double) matchSet.size() / (100.0  * 0.25) );
-//            MetaBlocking mb = new MetaBlocking();
-//            JavaPairRDD<String, Integer> matches = mb.predict(blocks,2, AliceDS,BobsDS).reduceByKey(Integer::sum) ;
-//             check if we have matches
-
-        System.out.println(matches);
-        System.out.println("MATCHES");
+//        System.out.println(matches);
+//        System.out.println("MATCHES");
 
 //            Scanner myscanner = new Scanner(System.in);
 //            myscanner.nextLine();
@@ -346,4 +223,5 @@ public class Simulator {
 
 
     }
+
 }

@@ -1,17 +1,19 @@
 package com.algorithms;
 
+import com.utils.Bigrams;
 import com.utils.Block;
 import com.utils.BlockElement;
-import org.apache.spark.api.java.JavaPairRDD;
-import org.apache.spark.api.java.JavaRDD;
-import org.apache.spark.api.java.function.PairFlatMapFunction;
-import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import scala.Tuple2;
+import org.apache.spark.sql.RowFactory;
+import org.apache.spark.util.sketch.BloomFilter;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Iterator;
+import java.util.List;
 
 public class MetaBlocking implements Serializable {
 	
@@ -19,57 +21,52 @@ public class MetaBlocking implements Serializable {
 
 	public MetaBlocking () {}
 	
-	public JavaPairRDD<String, Integer> predict(JavaRDD<Block> blocks , int window , Dataset<Row> Alice , Dataset<Row> Bob) {
-		return blocks.flatMapToPair(new PairFlatMapFunction<Block, String, Integer> (){
-			private static final long serialVersionUID = 1L;
 
-			public Iterator<Tuple2<String, Integer>> call(Block block) {
-				ArrayList<BlockElement> baList = block.getBAList();
-				ArrayList<Tuple2<String, Integer>> matches = new ArrayList<>();
+	public Iterator<Row> createPossibleMatches(Block block, int window){
+		List<Row> recordPairs = new ArrayList<>();
+		List<BlockElement> baList = block.getBAList();
 
+		for (int i = 1; i < baList.size(); i++) {
+			String record1 = baList.get(i).getRecordID();
+			for (int j = i - 1; j >= i - window && j >= 0; j--) {
+				String record2 = baList.get(j).getRecordID();
 
-				for(int i = 1 ; i < baList.size() ; i ++ ) {
-					String record1 = baList.get(i).getRecordID();
-					for(int j = i - 1 ; j >= i - window && j >=0 ; j--) {
-						String record2 = baList.get(j).getRecordID();
-						char firstcharOfrecord1 = record1.charAt(0) ;
-						char firstcharOfrecord2 = record2.charAt(0) ;
+				char firstcharOfrecord1 = record1.charAt(0);
+				char firstcharOfrecord2 = record2.charAt(0);
 
-						if(firstcharOfrecord1 != firstcharOfrecord2){
-							System.out.println(record1.substring(1) + " " + record2.substring(1));
-							Row record1Attributes ;
-							Row record2Attributes ;
-							if(firstcharOfrecord1 == 'A') {
-								record1Attributes = Alice.filter(Alice.col("id").equalTo(record1.substring(1))).first();
-								record2Attributes = Bob.filter(Alice.col("id").equalTo(record2.substring(1))).first();
-							}
-							else{
-								record1Attributes = Bob.filter(Alice.col("id").equalTo(record1.substring(1))).first();
-								record2Attributes = Alice.filter(Alice.col("id").equalTo(record2.substring(1))).first();
-							}
+				// check if records are from  different database
+				if (firstcharOfrecord1 != firstcharOfrecord2) {
 
-							if (record1Attributes.getString(0).equals(record2Attributes.getString(0)))
-								matches.add(new Tuple2<String, Integer>(record1Attributes.getString(0), 1)) ;
-
-							System.out.println(record1Attributes.getString(0));
-
-						}
-
-
-
-					}
+					// put records in the right column
+					if (firstcharOfrecord1 == 'A')
+						recordPairs.add(RowFactory.create(record1,record2));
+					else
+						recordPairs.add(RowFactory.create(record2,record1));
 				}
-//				for (BlockingAttribute ba : baList) {
-//					if (baList.indexOf(ba) + 1 != baList.size()) {
-//						String match = ba.getRecordID() + "-" + baList.get(baList.indexOf(ba) + 1).getRecordID();
-//						matches.add(new Tuple2<String, Integer>(match, 1));
-//					} else {
-//						break;
-//					}
-//				}
-
-				return matches.iterator();
 			}
-		});
+		}
+		return recordPairs.iterator();
+	}
+
+
+	public Row createBloomFilters(List<String> record) {
+		// join all attribute
+		List<String> attributesBigrams = Bigrams.ngrams(2, String.join("", record.subList(1, 4)));
+		// create bloom filter
+		BloomFilter bf = BloomFilter.create(attributesBigrams.size(), 900);
+
+		// put bigrams in bloom filters
+		for (String bigram : attributesBigrams)
+			bf.putString(bigram);
+
+		// reformat bloom filter as string
+		ByteArrayOutputStream bloomByte = new ByteArrayOutputStream();
+		try {
+			bf.writeTo(bloomByte);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+		return RowFactory.create(record.get(0), BitSet.valueOf(bloomByte.toByteArray()).toString());
 	}
 }
