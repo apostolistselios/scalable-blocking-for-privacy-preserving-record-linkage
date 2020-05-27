@@ -11,6 +11,7 @@ import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
+import org.apache.spark.api.java.function.FilterFunction;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -42,9 +43,10 @@ public class Simulator {
         SparkSession spark = SparkSession.builder().appName("JavaRDD").getOrCreate();
         spark.sparkContext().setLogLevel("ERROR");
 
-        SQLData db = new SQLData(spark, "1k");
+        SQLData db = new SQLData(spark, "50k");
 
-        JavaRDD<List<String>> AlicesRDD = db.getAlice().toJavaRDD().map(row -> {
+        Dataset<Row> AlicesDS = db.getAlice() ;
+        JavaRDD<List<String>> AlicesRDD = AlicesDS.toJavaRDD().map(row -> {
             List<String> list = new ArrayList<>();
             // change id to include source
             list.add("A" + row.getString(0));
@@ -53,8 +55,8 @@ public class Simulator {
             }
             return list;
         });
-
-        JavaRDD<List<String>> BobsRDD = db.getBob().toJavaRDD().map(row -> {
+        Dataset<Row> BobsDS = db.getAlice() ;
+        JavaRDD<List<String>> BobsRDD = BobsDS.toJavaRDD().map(row -> {
             List<String> list = new ArrayList<>();
             // change id to include source
             list.add("B" + row.getString(0));
@@ -64,9 +66,10 @@ public class Simulator {
             return list;
         });
 
+
         Dataset<Row> ReferenceSets = db.getReferenceSet();
 
-        System.out.println("Data form DB loaded");
+        System.out.println("Data from DB loaded");
         long t0 = System.currentTimeMillis();
 
         /*  data in BobsRDD is like
@@ -183,7 +186,7 @@ public class Simulator {
         possiblesMatchesSchema = possiblesMatchesSchema.add("record2", DataTypes.StringType, false);
         ExpressionEncoder<Row> possibleMatchesEncoder = RowEncoder.apply(possiblesMatchesSchema);
 
-        int window = 2;
+        int window = 20;
 
         // create possibleMatchesDS that contains only unique rows
         Dataset<Row> possibleMatchesDS = spark.createDataset(blocks.flatMap(block -> mb.createPossibleMatches(block,window)).rdd(),
@@ -197,26 +200,25 @@ public class Simulator {
 
 
 
+        double THRESHOLD = 0.4 ;
+        Dataset<Row> matches = possibleMatchesWithBloomsDS.filter((FilterFunction<Row>) row -> mb.isMatch(row,THRESHOLD)) ;
 
-        possibleMatchesWithBloomsDS.show(10);
         long timer = (System.currentTimeMillis() - t0) / 1000;
 
         System.out.println("Execution time: " + timer + " seconds");
 
-//        Set<String> prematchSet = new HashSet<String>(matches);
-//
-//        matches =  matches.stream().filter(s -> {
-//            int sep = s.indexOf(" ") ;
-//            String rec1 = s.substring(0,sep);
-//            String rec2 = s.substring(sep+1);
-//            return rec1.equals(rec2);
-//        }).collect(Collectors.toList());
-//
-//
-//
-//        Set<String> matchSet = new HashSet<String>(matches);
-//        System.out.println(prematchSet.size()) ;
-//        System.out.println("Possible Recall ( it may go above 1 ) : " + (double) matchSet.size() / (100.0  * 0.25) );
+        long matchesSize = matches.count();
+        long tp =   matches.filter((FilterFunction<Row>) row -> {
+            return row.getString(0).substring(1).equals(row.getString(1).substring(1));
+        }).count();
+        long fp = matchesSize - tp ;
+
+        long commons = (long) 1000;
+
+        System.out.println(tp);
+        System.out.println(matchesSize);
+        System.out.println("Possible Recall ( it may go above 1 ) : " + (double) tp / commons );
+        System.out.println("Possible Precision ( it may go above 1 ) : " + (double) tp / matchesSize );
 
 //        System.out.println(matches);
 //        System.out.println("MATCHES");

@@ -3,6 +3,7 @@ package com.algorithms;
 import com.utils.Bigrams;
 import com.utils.Block;
 import com.utils.BlockElement;
+import info.debatty.java.stringsimilarity.SorensenDice;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.util.sketch.BloomFilter;
@@ -11,6 +12,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
@@ -67,5 +69,18 @@ public class MetaBlocking implements Serializable {
 		}
 
 		return RowFactory.create(record.get(0), bloomByte.toByteArray() );
+	}
+
+
+	public boolean isMatch(Row row,double THRESHOLD) throws  Exception{
+		byte[] bf1 = (byte[]) row.getAs("bloom1");
+		byte[] bf2 = (byte[]) row.getAs("bloom2");
+
+		SorensenDice sd = new SorensenDice();
+		double dCof = sd.similarity(Arrays.toString(bf1), Arrays.toString(bf2));
+
+		// (double) (2 * BitSet.valueOf(Bytes.concat(bf1, bf2)).cardinality()) / (BitSet.valueOf(bf1).cardinality() + BitSet.valueOf(bf2).cardinality());
+		System.out.println(dCof);
+		return dCof > THRESHOLD;
 	}
 }
