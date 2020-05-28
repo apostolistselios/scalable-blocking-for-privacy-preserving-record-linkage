@@ -1,10 +1,13 @@
 package com.utils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class Bigrams {
     public static List<String> ngrams(int n, String str) {
+        if (str.length()<2)
+            return Arrays.asList(str);
         List<String> ngrams = new ArrayList<String>();
         for (int i = 0; i < str.length() - n + 1; i++)
             // Add the substring or size n

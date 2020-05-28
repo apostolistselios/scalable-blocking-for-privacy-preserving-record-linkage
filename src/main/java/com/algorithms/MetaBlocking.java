@@ -52,34 +52,42 @@ public class MetaBlocking implements Serializable {
 
 	public Row createBloomFilters(List<String> record) {
 		// join all attribute
-		List<String> attributesBigrams = Bigrams.ngrams(2, String.join("", record.subList(1, 4)));
-		// create bloom filter
-		BloomFilter bf = BloomFilter.create(attributesBigrams.size(), 900);
+		byte[][] BloomFilters = new byte[3][];
+		for(int i=1;i<=3;i++){
+			String attribute = record.get(i);
 
-		// put bigrams in bloom filters
-		for (String bigram : attributesBigrams)
-			bf.putString(bigram);
-
-		// reformat bloom filter as string
-		ByteArrayOutputStream bloomByte = new ByteArrayOutputStream();
-		try {
-			bf.writeTo(bloomByte);
-		} catch (IOException e) {
-			e.printStackTrace();
+			List<String> attributesBigrams = Bigrams.ngrams(2, attribute);
+			// create bloom filter
+			BloomFilter bf = BloomFilter.create(attributesBigrams.size(), 900);
+			// put bigrams in bloom filters
+			for (String bigram : attributesBigrams)
+				bf.putString(bigram);
+			// reformat bloom filter as string
+			ByteArrayOutputStream bloomByte = new ByteArrayOutputStream();
+			try {
+				bf.writeTo(bloomByte);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			BloomFilters[i-1] = bloomByte.toByteArray();
 		}
 
-		return RowFactory.create(record.get(0), bloomByte.toByteArray() );
+		return RowFactory.create(record.get(0), BloomFilters);
 	}
 
 
 	public boolean isMatch(Row row,double THRESHOLD) throws  Exception{
-		byte[] bf1 = (byte[]) row.getAs("bloom1");
-		byte[] bf2 = (byte[]) row.getAs("bloom2");
+		List<byte[]> BloomFilters1 = row.getList(2);
+		List<byte[]> BloomFilters2 = row.getList(3);
 
-		SorensenDice sd = new SorensenDice();
-		double dCof = sd.similarity(Arrays.toString(bf1), Arrays.toString(bf2));
+		for (int i = 0; i< BloomFilters1.size(); i++) {
+			SorensenDice sd = new SorensenDice();
 
-		// (double) (2 * BitSet.valueOf(Bytes.concat(bf1, bf2)).cardinality()) / (BitSet.valueOf(bf1).cardinality() + BitSet.valueOf(bf2).cardinality());
-		return dCof > THRESHOLD;
+			double dCof = sd.similarity(Arrays.toString(BloomFilters1.get(i)), Arrays.toString(BloomFilters2.get(i)));
+			if (dCof < THRESHOLD) {
+				return false;
+			}
+		}
+		return true;
 	}
 }

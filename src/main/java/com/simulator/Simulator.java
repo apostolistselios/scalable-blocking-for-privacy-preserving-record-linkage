@@ -28,6 +28,8 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Scanner;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
 
 import static org.apache.spark.sql.functions.col;
 
@@ -171,7 +173,7 @@ public class Simulator {
         //define the schema for blooms dataset
         StructType bloomsFilterSchema = new StructType();
         bloomsFilterSchema = bloomsFilterSchema.add("recordID", DataTypes.StringType, false);
-        bloomsFilterSchema = bloomsFilterSchema.add("bloom", DataTypes.BinaryType , false);
+        bloomsFilterSchema = bloomsFilterSchema.add("bloom", DataTypes.createArrayType(DataTypes.BinaryType) , false);
         ExpressionEncoder<Row> bloomsFilterEncoder = RowEncoder.apply(bloomsFilterSchema);
 
         Dataset<Row> AliceBloomsDS = spark.createDataset(AlicesRDD.map(mb::createBloomFilters).rdd(),bloomsFilterEncoder) ;
@@ -183,38 +185,38 @@ public class Simulator {
         StructType possiblesMatchesSchema = new StructType();
         // this is the column for records from Alice's database
         possiblesMatchesSchema = possiblesMatchesSchema.add("record1", DataTypes.StringType, false);
-        // this is the column for records from Bob;s database
+        // this is the column for records from Bob's database
         possiblesMatchesSchema = possiblesMatchesSchema.add("record2", DataTypes.StringType, false);
         ExpressionEncoder<Row> possibleMatchesEncoder = RowEncoder.apply(possiblesMatchesSchema);
 
-        int window = 10;
+        int window = 20;
 
         // create possibleMatchesDS that contains only unique rows
         Dataset<Row> possibleMatchesDS = spark.createDataset(blocks.flatMap(block -> mb.createPossibleMatches(block,window)).rdd(),
-                possibleMatchesEncoder) ;
+                possibleMatchesEncoder).distinct() ;
 
 
-
-        Dataset<Row> possibleMatchesWithBloomsDS = possibleMatchesDS.join(AliceBloomsDS,
-                possibleMatchesDS.col("record1").equalTo(AliceBloomsDS.col("recordID")))
-                .drop("recordID").withColumnRenamed("bloom","bloom1")
+        Dataset<Row> possibleMatchesWithBloomsDS = possibleMatchesDS
                 .join(BobsBloomsDS,possibleMatchesDS.col("record2").equalTo(BobsBloomsDS.col("recordID")))
-                .drop("recordID").withColumnRenamed("bloom","bloom2") ;
+                .drop("recordID").withColumnRenamed("bloom","bloom2")
+                .join(AliceBloomsDS, possibleMatchesDS.col("record1").equalTo(AliceBloomsDS.col("recordID")))
+                .drop("recordID").withColumnRenamed("bloom","bloom1");
 
 
-        double THRESHOLD = 0.7 ;
+        double THRESHOLD = 0.4 ;
         Dataset<Row> matches = possibleMatchesWithBloomsDS.filter((FilterFunction<Row>) row -> mb.isMatch(row,THRESHOLD)) ;
 
         List<Row> matchesList = matches.collectAsList();
 
 
         long matchesSize = matchesList.size();
-        long tp =  matchesList.stream().filter(row -> {
+        long tp = matchesList.stream().filter(row -> {
             return row.getString(0).substring(1).equals(row.getString(1).substring(1));
         }).count();
+
         long fp = matchesSize - tp ;
 
-        long commons = (long) (50000 * 0.25);
+        long commons = (long) (1000 * 0.25);
         long timer = (System.currentTimeMillis() - t0) / 1000;
         System.out.println("Execution time: " + timer + " seconds");
         System.out.println(tp);
