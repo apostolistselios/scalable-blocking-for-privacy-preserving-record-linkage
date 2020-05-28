@@ -9,6 +9,7 @@ import com.utils.BlockElement;
 import com.utils.BlockingAttribute;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
+import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.function.FilterFunction;
@@ -20,14 +21,12 @@ import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder;
 import org.apache.spark.sql.catalyst.encoders.RowEncoder;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.storage.StorageLevel;
 import scala.Tuple2;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
+import java.util.Scanner;
 
 import static org.apache.spark.sql.functions.col;
 
@@ -39,13 +38,16 @@ public class Simulator {
         final int NUMBER_OF_BLOCKING_ATTRS = 3;
 
         Logger.getLogger("org.apache").setLevel(Level.WARN);
+        SparkConf conf = new SparkConf().setAppName("JavaRDD")
+                .set("spark.executor.memory", "5g");
 
-        SparkSession spark = SparkSession.builder().appName("JavaRDD").getOrCreate();
+        SparkSession spark = SparkSession.builder().config(conf).getOrCreate();
         spark.sparkContext().setLogLevel("ERROR");
 
         SQLData db = new SQLData(spark, "50k");
 
         Dataset<Row> AlicesDS = db.getAlice() ;
+        AlicesDS.persist(StorageLevel.MEMORY_ONLY());
         JavaRDD<List<String>> AlicesRDD = AlicesDS.toJavaRDD().map(row -> {
             List<String> list = new ArrayList<>();
             // change id to include source
@@ -55,7 +57,9 @@ public class Simulator {
             }
             return list;
         });
+
         Dataset<Row> BobsDS = db.getAlice() ;
+        BobsDS.persist(StorageLevel.MEMORY_ONLY());
         JavaRDD<List<String>> BobsRDD = BobsDS.toJavaRDD().map(row -> {
             List<String> list = new ArrayList<>();
             // change id to include source
@@ -80,12 +84,19 @@ public class Simulator {
         ReferenceSetBlocking rsb = new ReferenceSetBlocking();
 
         ArrayList<JavaPairRDD<String, String>> AliceRDDs = new ArrayList<>();
-        for (int i = 1; i <= NUMBER_OF_BLOCKING_ATTRS; i++)
-            AliceRDDs.add(rsb.mapBlockingAttributes(AlicesRDD, i));
+        for (int i = 1; i <= NUMBER_OF_BLOCKING_ATTRS; i++) {
+            // copy i to final variable just to pass it as parameter
+            int finalI = i;
+            AliceRDDs.add(AlicesRDD.mapToPair(record -> rsb.mapBlockingAttributes(record, finalI)));
+        }
+
 
         ArrayList<JavaPairRDD<String, String>> BobRDDs = new ArrayList<>();
-        for (int i = 1; i <= NUMBER_OF_BLOCKING_ATTRS; i++)
-            BobRDDs.add(rsb.mapBlockingAttributes(BobsRDD, i));
+        for (int i = 1; i <= NUMBER_OF_BLOCKING_ATTRS; i++) {
+            // copy i to final variable just to pass it as parameter
+            int finalI = i;
+            BobRDDs.add(BobsRDD.mapToPair(record -> rsb.mapBlockingAttributes(record, finalI)));
+        }
 
         /*  data in BobsRDD for attribute name is like
            (AT24345,ABEDE)
@@ -151,15 +162,7 @@ public class Simulator {
         */
         // Data in CombinedBlocks are like  last BobsblocksRDD representation but includes records from both dbs
 
-        JavaRDD<Block> blocks = filteredBlocks.map(block -> {
-            ArrayList<BlockElement> baList = (ArrayList<BlockElement>) Stream.concat(StreamSupport.stream(block._2()._1().spliterator(), true),
-                    StreamSupport.stream(block._2()._2().spliterator(), true)).collect(Collectors.toList());
-
-            Block blockObj = new Block(block._1(), baList);
-            blockObj.calculateRank();
-            Collections.sort(blockObj.getBAList());
-            return blockObj;
-        });
+        JavaRDD<Block> blocks = filteredBlocks.map(rsb::sortBlockElements);
 
         /* Data in blocks is like
         [BLOCK: S3.1-S1.2 - Rank: 60 - [BA(S3.1,BAT24345,15), BA(S3.1,BAA181290,15), BA(S3.1,AAA181290,15), BA(S3.1,AAT24345,15)]]
@@ -200,12 +203,10 @@ public class Simulator {
 
 
 
-        double THRESHOLD = 0.4 ;
+        double THRESHOLD = 0.7 ;
         Dataset<Row> matches = possibleMatchesWithBloomsDS.filter((FilterFunction<Row>) row -> mb.isMatch(row,THRESHOLD)) ;
 
-        long timer = (System.currentTimeMillis() - t0) / 1000;
 
-        System.out.println("Execution time: " + timer + " seconds");
 
         long matchesSize = matches.count();
         long tp =   matches.filter((FilterFunction<Row>) row -> {
@@ -214,7 +215,8 @@ public class Simulator {
         long fp = matchesSize - tp ;
 
         long commons = (long) 1000;
-
+        long timer = (System.currentTimeMillis() - t0) / 1000;
+        System.out.println("Execution time: " + timer + " seconds");
         System.out.println(tp);
         System.out.println(matchesSize);
         System.out.println("Possible Recall ( it may go above 1 ) : " + (double) tp / commons );
@@ -223,9 +225,9 @@ public class Simulator {
 //        System.out.println(matches);
 //        System.out.println("MATCHES");
 
-//            Scanner myscanner = new Scanner(System.in);
-//            myscanner.nextLine();
-//            myscanner.close();
+        Scanner myscanner = new Scanner(System.in);
+        myscanner.nextLine();
+        myscanner.close();
 
         spark.close();
 

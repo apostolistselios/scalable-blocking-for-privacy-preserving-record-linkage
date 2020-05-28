@@ -17,9 +17,9 @@ public class SQLData {
         // Get SparkSession from Main
         this.spark = spark;
         this.alice = spark.read().format("csv")
-                .load("hdfs://master:9000/user/user/blocking/db/main_A_25p_" + size + ".csv").limit(50000);
+                .load("hdfs://master:9000/user/user/blocking/db/main_A_25p_" + size + ".csv").limit(1000);
         this.bob = spark.read().format("csv")
-                .load("hdfs://master:9000/user/user/blocking/db/main_B_25p_" + size + ".csv").limit(50000);
+                .load("hdfs://master:9000/user/user/blocking/db/main_B_25p_" + size + ".csv").limit(1000);
         this.referenceSet = spark.read().format("csv")
                 .load("hdfs://master:9000/user/user/blocking/db/main_A_authors3.csv").limit(50);
     }
@@ -42,6 +42,6 @@ public class SQLData {
                 , col("_c1").alias("surname")
                 , col("_c2").alias("name")
                 , col("_c5").alias("city")
-        );
+        ).where("surname is not null and name is not null and city is not null");
     }
 }

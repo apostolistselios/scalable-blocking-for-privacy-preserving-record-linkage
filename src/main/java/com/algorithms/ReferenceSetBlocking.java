@@ -1,11 +1,11 @@
 package com.algorithms;
 
 import com.utils.BinarySearch;
+import com.utils.Block;
 import com.utils.BlockElement;
 import com.utils.BlockingAttribute;
 import org.apache.commons.text.similarity.LevenshteinDistance;
 import org.apache.spark.api.java.JavaPairRDD;
-import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -16,8 +16,12 @@ import scala.collection.Map;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 public class ReferenceSetBlocking implements Serializable {
 	
@@ -25,12 +29,10 @@ public class ReferenceSetBlocking implements Serializable {
     private static final int NUMBER_OF_BLOCKING_ATTRS = 3;
 
     public ReferenceSetBlocking() {}
-	
-    public JavaPairRDD<String, String> mapBlockingAttributes(JavaRDD<List<String>> inputRDD, int ba) {
-        // method returns pairs of [Record ID, BA Value] e.g. [a1, nicholas], [a2, ann], etc.
-        return inputRDD.mapToPair(record -> new Tuple2<>(record.get(0), record.get(ba)));
-    }
 
+    public Tuple2<String,String> mapBlockingAttributes(List<String> record , int ba ){
+        return new Tuple2<>(record.get(0), record.get(ba));
+    }
     public  Dataset<Row> mapBlockingAttributes(Dataset<Row> dbDS , int ba ){
 	    if (ba==1)
             return dbDS.select("id", "name");
@@ -117,6 +119,15 @@ public class ReferenceSetBlocking implements Serializable {
         return blocks.iterator();
     }
 
+    public Block sortBlockElements(Tuple2<String,Tuple2<Iterable<BlockElement>, Iterable<BlockElement>>> block ){
+        ArrayList<BlockElement> baList = (ArrayList<BlockElement>) Stream.concat(StreamSupport.stream(block._2()._1().spliterator(), true),
+                StreamSupport.stream(block._2()._2().spliterator(), true)).collect(Collectors.toList());
+
+        Block blockObj = new Block(block._1(), baList);
+        blockObj.calculateRank();
+        Collections.sort(blockObj.getBAList());
+        return blockObj;
+    }
 
     public Iterator<Row> combineBlocksDS(Row row) {
         List<Row> blocks = new ArrayList<>();

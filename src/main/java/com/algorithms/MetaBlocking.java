@@ -80,7 +80,6 @@ public class MetaBlocking implements Serializable {
 		double dCof = sd.similarity(Arrays.toString(bf1), Arrays.toString(bf2));
 
 		// (double) (2 * BitSet.valueOf(Bytes.concat(bf1, bf2)).cardinality()) / (BitSet.valueOf(bf1).cardinality() + BitSet.valueOf(bf2).cardinality());
-		System.out.println(dCof);
 		return dCof > THRESHOLD;
 	}
 }
