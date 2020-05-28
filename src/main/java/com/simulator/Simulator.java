@@ -7,6 +7,7 @@ import com.database.SQLData;
 import com.utils.Block;
 import com.utils.BlockElement;
 import com.utils.BlockingAttribute;
+import jdk.nashorn.internal.ir.annotations.Reference;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.spark.SparkConf;
@@ -24,6 +25,7 @@ import org.apache.spark.sql.types.StructType;
 import scala.Tuple2;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Scanner;
 
@@ -37,8 +39,8 @@ public class Simulator {
         final int NUMBER_OF_BLOCKING_ATTRS = 3;
 
         Logger.getLogger("org.apache").setLevel(Level.WARN);
-        SparkConf conf = new SparkConf().setAppName("JavaRDD");
-   //             .set("spark.executor.memory", "5g");
+        SparkConf conf = new SparkConf().setAppName("JavaRDD")
+                .set("spark.executor.memory", "5g");
 
         SparkSession spark = SparkSession.builder().config(conf).getOrCreate();
         spark.sparkContext().setLogLevel("ERROR");
@@ -57,7 +59,7 @@ public class Simulator {
             return list;
         });
 
-        Dataset<Row> BobsDS = db.getAlice() ;
+        Dataset<Row> BobsDS = db.getBob() ;
 
         JavaRDD<List<String>> BobsRDD = BobsDS.toJavaRDD().map(row -> {
             List<String> list = new ArrayList<>();
@@ -109,7 +111,7 @@ public class Simulator {
         for (int i = 1; i <= NUMBER_OF_BLOCKING_ATTRS; i++) {
             ClassifiedAlicesRDDs.add(rsb.classify(
                     AliceRDDs.get(i - 1)
-                    , ReferenceSets.select(col("_c" + i)).as(Encoders.STRING()).collectAsList()
+                    , ReferenceSets.select(col("col" + i)).as(Encoders.STRING()).collectAsList()
                     , String.valueOf(i)));
         }
 
@@ -117,7 +119,7 @@ public class Simulator {
         for (int i = 1; i <= NUMBER_OF_BLOCKING_ATTRS; i++) {
             ClassifiedBobsRDDs.add(rsb.classify(
                     BobRDDs.get(i - 1)
-                    , ReferenceSets.select(col("_c" + i)).as(Encoders.STRING()).collectAsList()
+                    , ReferenceSets.select(col("col" + i)).as(Encoders.STRING()).collectAsList()
                     , String.valueOf(i)));
         }
         /*
@@ -144,9 +146,6 @@ public class Simulator {
          data in BobsblocksRDD  is like
         (S1.2-S2.1,BA(S1.2,AA181290,13))
          */
-
-        // combine the 2 different databases Alices and Bob.
-        //TODO Make sure that blocks have records from both databases
 
         // combine the 2 different databases Alices and Bob.
         JavaPairRDD<String, Tuple2<Iterable<BlockElement>, Iterable<BlockElement>>> CombinedBlocks = BobsblocksRDD.cogroup(AliceblocksRDD);
@@ -188,11 +187,13 @@ public class Simulator {
         possiblesMatchesSchema = possiblesMatchesSchema.add("record2", DataTypes.StringType, false);
         ExpressionEncoder<Row> possibleMatchesEncoder = RowEncoder.apply(possiblesMatchesSchema);
 
-        int window = 20;
+        int window = 10;
 
         // create possibleMatchesDS that contains only unique rows
         Dataset<Row> possibleMatchesDS = spark.createDataset(blocks.flatMap(block -> mb.createPossibleMatches(block,window)).rdd(),
-                possibleMatchesEncoder).distinct() ;
+                possibleMatchesEncoder) ;
+
+
 
         Dataset<Row> possibleMatchesWithBloomsDS = possibleMatchesDS.join(AliceBloomsDS,
                 possibleMatchesDS.col("record1").equalTo(AliceBloomsDS.col("recordID")))
@@ -201,14 +202,14 @@ public class Simulator {
                 .drop("recordID").withColumnRenamed("bloom","bloom2") ;
 
 
-
         double THRESHOLD = 0.7 ;
         Dataset<Row> matches = possibleMatchesWithBloomsDS.filter((FilterFunction<Row>) row -> mb.isMatch(row,THRESHOLD)) ;
 
+        List<Row> matchesList = matches.collectAsList();
 
 
-        long matchesSize = matches.count();
-        long tp =   matches.filter((FilterFunction<Row>) row -> {
+        long matchesSize = matchesList.size();
+        long tp =  matchesList.stream().filter(row -> {
             return row.getString(0).substring(1).equals(row.getString(1).substring(1));
         }).count();
         long fp = matchesSize - tp ;
@@ -218,8 +219,8 @@ public class Simulator {
         System.out.println("Execution time: " + timer + " seconds");
         System.out.println(tp);
         System.out.println(matchesSize);
-        System.out.println("Possible Recall ( it may go above 1 ) : " + (double) tp / commons );
-        System.out.println("Possible Precision ( it may go above 1 ) : " + (double) tp / matchesSize );
+        System.out.println("Possible Recall (it may go above 1) : " + (double) tp / commons );
+        System.out.println("Possible Precision (it may go above 1) : " + (double) tp / matchesSize );
 
 //        System.out.println(matches);
 //        System.out.println("MATCHES");

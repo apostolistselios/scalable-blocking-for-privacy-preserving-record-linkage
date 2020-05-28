@@ -20,8 +20,8 @@ public class SQLData {
                 .load("hdfs://master:9000/user/user/blocking/db/main_A_25p_" + size + ".csv").limit(50000);
         this.bob = spark.read().format("csv")
                 .load("hdfs://master:9000/user/user/blocking/db/main_B_25p_" + size + ".csv").limit(50000);
-        this.referenceSet = spark.read().format("csv")
-                .load("hdfs://master:9000/user/user/blocking/db/main_A_authors3.csv").limit(1000);
+        this.referenceSet = spark.read().format("csv").option("header", "true")
+                .load("hdfs://master:9000/user/user/blocking/db/Master.csv").limit(50);
     }
 
     public Dataset<Row> getAlice() {
@@ -33,7 +33,10 @@ public class SQLData {
     }
 
     public Dataset<Row> getReferenceSet() {
-        return referenceSet;
+        return referenceSet.select(col("nameFirst").alias("col1")
+                , col("birthCity").alias("col2")
+                , col("nameLast").alias("col3")
+        ).where("col1 is not null and col2 is not null and col3 is not null");
     }
 
     private Dataset<Row> query(Dataset<Row> ds){
