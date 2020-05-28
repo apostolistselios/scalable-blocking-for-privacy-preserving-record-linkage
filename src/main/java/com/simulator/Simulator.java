@@ -21,7 +21,6 @@ import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder;
 import org.apache.spark.sql.catalyst.encoders.RowEncoder;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.storage.StorageLevel;
 import scala.Tuple2;
 
 import java.util.ArrayList;
@@ -38,8 +37,8 @@ public class Simulator {
         final int NUMBER_OF_BLOCKING_ATTRS = 3;
 
         Logger.getLogger("org.apache").setLevel(Level.WARN);
-        SparkConf conf = new SparkConf().setAppName("JavaRDD")
-                .set("spark.executor.memory", "5g");
+        SparkConf conf = new SparkConf().setAppName("JavaRDD");
+   //             .set("spark.executor.memory", "5g");
 
         SparkSession spark = SparkSession.builder().config(conf).getOrCreate();
         spark.sparkContext().setLogLevel("ERROR");
@@ -47,7 +46,7 @@ public class Simulator {
         SQLData db = new SQLData(spark, "50k");
 
         Dataset<Row> AlicesDS = db.getAlice() ;
-        AlicesDS.persist(StorageLevel.MEMORY_ONLY());
+
         JavaRDD<List<String>> AlicesRDD = AlicesDS.toJavaRDD().map(row -> {
             List<String> list = new ArrayList<>();
             // change id to include source
@@ -59,7 +58,7 @@ public class Simulator {
         });
 
         Dataset<Row> BobsDS = db.getAlice() ;
-        BobsDS.persist(StorageLevel.MEMORY_ONLY());
+
         JavaRDD<List<String>> BobsRDD = BobsDS.toJavaRDD().map(row -> {
             List<String> list = new ArrayList<>();
             // change id to include source
@@ -214,7 +213,7 @@ public class Simulator {
         }).count();
         long fp = matchesSize - tp ;
 
-        long commons = (long) 1000;
+        long commons = (long) (50000 * 0.25);
         long timer = (System.currentTimeMillis() - t0) / 1000;
         System.out.println("Execution time: " + timer + " seconds");
         System.out.println(tp);

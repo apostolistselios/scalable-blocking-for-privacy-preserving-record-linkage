@@ -29,7 +29,7 @@ public class MetaBlocking implements Serializable {
 
 		for (int i = 1; i < baList.size(); i++) {
 			String record1 = baList.get(i).getRecordID();
-			for (int j = i - 1; j >= i - window && j >= 0; j--) {
+			for (int j = i - 1; j >= i - window + 1 && j >= 0; j--) {
 				String record2 = baList.get(j).getRecordID();
 
 				char firstcharOfrecord1 = record1.charAt(0);
