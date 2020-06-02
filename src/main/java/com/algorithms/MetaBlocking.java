@@ -53,7 +53,7 @@ public class MetaBlocking implements Serializable {
 
 	public Row createBloomFilters(List<String> record) {
 		// join all attribute
-		List<String> attributesBigrams = Bigrams.ngrams(2, String.join("", record.subList(1, Conf.NUMBER_OF_BLOCKING_ATTRS + 1)));
+		List<String> attributesBigrams = Bigrams.ngrams(2, String.join("", record.subList(1, Conf.NUM_OF_BLOCKING_ATTRS + 1)));
 		// create bloom filter
 		BloomFilter bf = BloomFilter.create(attributesBigrams.size(), Conf.BLOOM_FILTER_SIZE);
 

@@ -7,7 +7,11 @@ public abstract class Conf {
     public static String DB_B_FILE_NAME = "main_B_25p_50k.csv";
     public static String RS_FILE_NAME = "Master.csv";
 
-    public static int NUMBER_OF_BLOCKING_ATTRS = 3;
+    public static int NUM_OF_BLOCKING_ATTRS = 3;
+
+    // Use attributes that match NUM_OF_BLOCKING_ATTRS.
+    // For example if NUM_OF_BLOCKING_ATTRS = 3 use ATTR_1, ATTR_2, ATTR_3.
+    // Always remember to change method SQLData.query!
     public static String ID = "id";
     public static String ATTR_1 = "surname";
     public static String ATTR_2 = "name";

@@ -142,10 +142,10 @@ public class ReferenceSetBlocking implements Serializable {
         // scores
         List<Integer> scorelist = row.getList(2);
 
-        for (int i = 0; i < Conf.NUMBER_OF_BLOCKING_ATTRS; i++) {
+        for (int i = 0; i < Conf.NUM_OF_BLOCKING_ATTRS; i++) {
             String blockID;
             String currClassID = classIDlist.get(i);
-            String nextClassID = classIDlist.get((i + 1) % Conf.NUMBER_OF_BLOCKING_ATTRS);
+            String nextClassID = classIDlist.get((i + 1) % Conf.NUM_OF_BLOCKING_ATTRS);
 
             // a simple rule to keep consistency in naming of block combinations :
             // first part in BlockID is always the smaller class lexicographically
@@ -157,7 +157,7 @@ public class ReferenceSetBlocking implements Serializable {
             // map witch represent a record  <recordID, Summed score>
             Map<String, Integer> record = new scala.collection.immutable.Map.Map1<>(
                     row.getString(0),
-                    scorelist.get(i) + scorelist.get((i + 1) % Conf.NUMBER_OF_BLOCKING_ATTRS));
+                    scorelist.get(i) + scorelist.get((i + 1) % Conf.NUM_OF_BLOCKING_ATTRS));
 
 
             blocks.add(RowFactory.create(blockID, record));

@@ -8,7 +8,6 @@ import com.utils.Block;
 import com.utils.BlockElement;
 import com.utils.BlockingAttribute;
 import com.utils.Conf;
-import jdk.nashorn.internal.ir.annotations.Reference;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.spark.SparkConf;
@@ -25,8 +24,6 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import scala.Tuple2;
 
-import java.io.FileInputStream;
-import java.io.IOException;
 import java.util.*;
 
 import static org.apache.spark.sql.functions.col;
@@ -36,7 +33,7 @@ public class Simulator {
     public static void main(String[] args) {
 
         //TODO  meta blocking
-        final int NUMBER_OF_BLOCKING_ATTRS = Conf.NUMBER_OF_BLOCKING_ATTRS;
+        final int NUMBER_OF_BLOCKING_ATTRS = Conf.NUM_OF_BLOCKING_ATTRS;
 
         Logger.getLogger("org.apache").setLevel(Level.WARN);
         SparkConf conf = new SparkConf().setAppName("JavaRDD")
