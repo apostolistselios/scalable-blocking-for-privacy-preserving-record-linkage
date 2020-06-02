@@ -1,9 +1,6 @@
 package com.algorithms;
 
-import com.utils.BinarySearch;
-import com.utils.Block;
-import com.utils.BlockElement;
-import com.utils.BlockingAttribute;
+import com.utils.*;
 import org.apache.commons.text.similarity.LevenshteinDistance;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.function.MapFunction;
@@ -26,20 +23,26 @@ import java.util.stream.StreamSupport;
 public class ReferenceSetBlocking implements Serializable {
 	
 	private static final long serialVersionUID = -998419074815274020L;
-    private static final int NUMBER_OF_BLOCKING_ATTRS = 3;
 
     public ReferenceSetBlocking() {}
 
     public Tuple2<String,String> mapBlockingAttributes(List<String> record , int ba ){
         return new Tuple2<>(record.get(0), record.get(ba));
     }
-    public  Dataset<Row> mapBlockingAttributes(Dataset<Row> dbDS , int ba ){
-	    if (ba==1)
-            return dbDS.select("id", "name");
-	    else if (ba ==2)
-            return dbDS.select("id", "surname");
-	    else
-            return dbDS.select("id", "city");
+
+//    public  Dataset<Row> mapBlockingAttributes(Dataset<Row> dbDS , int ba ){
+//	    if (ba==1)
+//            return dbDS.select(Conf.getProperty("ID"), Conf.getProperty("ATTR_2"));
+//	    else if (ba ==2)
+//            return dbDS.select(Conf.getProperty("ID"), Conf.getProperty("ATTR_1"));
+//	    else
+//            return dbDS.select(Conf.getProperty("ID"), Conf.getProperty("ATTR_3"));
+//    }
+
+    public  Dataset<Row> mapBlockingAttributes(Dataset<Row> dbDS , int ba ) throws NoSuchFieldException, IllegalAccessException {
+        String attributeName = (String) Conf.class.getField("ATTR_" + ba).get(null);
+
+        return dbDS.select(Conf.ID, attributeName);
     }
 
     public JavaPairRDD<String, BlockingAttribute> classify(JavaPairRDD<String, String> baRDD, List<String> rs,
@@ -130,6 +133,7 @@ public class ReferenceSetBlocking implements Serializable {
     }
 
     public Iterator<Row> combineBlocksDS(Row row) {
+
         List<Row> blocks = new ArrayList<>();
 
         //Class Ids
@@ -138,10 +142,10 @@ public class ReferenceSetBlocking implements Serializable {
         // scores
         List<Integer> scorelist = row.getList(2);
 
-        for (int i = 0; i < NUMBER_OF_BLOCKING_ATTRS; i++) {
+        for (int i = 0; i < Conf.NUMBER_OF_BLOCKING_ATTRS; i++) {
             String blockID;
             String currClassID = classIDlist.get(i);
-            String nextClassID = classIDlist.get((i + 1) % NUMBER_OF_BLOCKING_ATTRS);
+            String nextClassID = classIDlist.get((i + 1) % Conf.NUMBER_OF_BLOCKING_ATTRS);
 
             // a simple rule to keep consistency in naming of block combinations :
             // first part in BlockID is always the smaller class lexicographically
@@ -153,7 +157,7 @@ public class ReferenceSetBlocking implements Serializable {
             // map witch represent a record  <recordID, Summed score>
             Map<String, Integer> record = new scala.collection.immutable.Map.Map1<>(
                     row.getString(0),
-                    scorelist.get(i) + scorelist.get((i + 1) % NUMBER_OF_BLOCKING_ATTRS));
+                    scorelist.get(i) + scorelist.get((i + 1) % Conf.NUMBER_OF_BLOCKING_ATTRS));
 
 
             blocks.add(RowFactory.create(blockID, record));

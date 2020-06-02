@@ -3,6 +3,7 @@ package com.algorithms;
 import com.utils.Bigrams;
 import com.utils.Block;
 import com.utils.BlockElement;
+import com.utils.Conf;
 import info.debatty.java.stringsimilarity.SorensenDice;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
@@ -52,9 +53,9 @@ public class MetaBlocking implements Serializable {
 
 	public Row createBloomFilters(List<String> record) {
 		// join all attribute
-		List<String> attributesBigrams = Bigrams.ngrams(2, String.join("", record.subList(1, 4)));
+		List<String> attributesBigrams = Bigrams.ngrams(2, String.join("", record.subList(1, Conf.NUMBER_OF_BLOCKING_ATTRS + 1)));
 		// create bloom filter
-		BloomFilter bf = BloomFilter.create(attributesBigrams.size(), 900);
+		BloomFilter bf = BloomFilter.create(attributesBigrams.size(), Conf.BLOOM_FILTER_SIZE);
 
 		// put bigrams in bloom filters
 		for (String bigram : attributesBigrams)
@@ -73,8 +74,8 @@ public class MetaBlocking implements Serializable {
 
 
 	public boolean isMatch(Row row,double THRESHOLD) throws  Exception{
-		byte[] bf1 = (byte[]) row.getAs("bloom1");
-		byte[] bf2 = (byte[]) row.getAs("bloom2");
+		byte[] bf1 = row.getAs("bloom1");
+		byte[] bf2 = row.getAs("bloom2");
 
 		SorensenDice sd = new SorensenDice();
 		double dCof = sd.similarity(Arrays.toString(bf1), Arrays.toString(bf2));

@@ -7,6 +7,7 @@ import com.database.SQLData;
 import com.utils.Block;
 import com.utils.BlockElement;
 import com.utils.BlockingAttribute;
+import com.utils.Conf;
 import jdk.nashorn.internal.ir.annotations.Reference;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
@@ -24,10 +25,9 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import scala.Tuple2;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Scanner;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.util.*;
 
 import static org.apache.spark.sql.functions.col;
 
@@ -36,7 +36,7 @@ public class Simulator {
     public static void main(String[] args) {
 
         //TODO  meta blocking
-        final int NUMBER_OF_BLOCKING_ATTRS = 3;
+        final int NUMBER_OF_BLOCKING_ATTRS = Conf.NUMBER_OF_BLOCKING_ATTRS;
 
         Logger.getLogger("org.apache").setLevel(Level.WARN);
         SparkConf conf = new SparkConf().setAppName("JavaRDD")
@@ -45,7 +45,7 @@ public class Simulator {
         SparkSession spark = SparkSession.builder().config(conf).getOrCreate();
         spark.sparkContext().setLogLevel("ERROR");
 
-        SQLData db = new SQLData(spark, "50k");
+        SQLData db = new SQLData(spark);
 
         Dataset<Row> AlicesDS = db.getAlice() ;
 
@@ -187,13 +187,9 @@ public class Simulator {
         possiblesMatchesSchema = possiblesMatchesSchema.add("record2", DataTypes.StringType, false);
         ExpressionEncoder<Row> possibleMatchesEncoder = RowEncoder.apply(possiblesMatchesSchema);
 
-        int window = 10;
-
         // create possibleMatchesDS that contains only unique rows
-        Dataset<Row> possibleMatchesDS = spark.createDataset(blocks.flatMap(block -> mb.createPossibleMatches(block,window)).rdd(),
+        Dataset<Row> possibleMatchesDS = spark.createDataset(blocks.flatMap(block -> mb.createPossibleMatches(block,Conf.WINDOW_SIZE)).rdd(),
                 possibleMatchesEncoder) ;
-
-
 
         Dataset<Row> possibleMatchesWithBloomsDS = possibleMatchesDS.join(AliceBloomsDS,
                 possibleMatchesDS.col("record1").equalTo(AliceBloomsDS.col("recordID")))
@@ -201,12 +197,9 @@ public class Simulator {
                 .join(BobsBloomsDS,possibleMatchesDS.col("record2").equalTo(BobsBloomsDS.col("recordID")))
                 .drop("recordID").withColumnRenamed("bloom","bloom2") ;
 
-
-        double THRESHOLD = 0.7 ;
-        Dataset<Row> matches = possibleMatchesWithBloomsDS.filter((FilterFunction<Row>) row -> mb.isMatch(row,THRESHOLD)) ;
+        Dataset<Row> matches = possibleMatchesWithBloomsDS.filter((FilterFunction<Row>) row -> mb.isMatch(row,Conf.MATCHING_THRESHOLD)) ;
 
         List<Row> matchesList = matches.collectAsList();
-
 
         long matchesSize = matchesList.size();
         long tp =  matchesList.stream().filter(row -> {
@@ -214,7 +207,7 @@ public class Simulator {
         }).count();
         long fp = matchesSize - tp ;
 
-        long commons = (long) (50000 * 0.25);
+        long commons = (long) (Conf.DB_SIZE * Conf.COMMON_RECORDS);
         long timer = (System.currentTimeMillis() - t0) / 1000;
         System.out.println("Execution time: " + timer + " seconds");
         System.out.println(tp);

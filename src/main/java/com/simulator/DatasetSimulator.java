@@ -3,6 +3,7 @@ package com.simulator;
 import com.algorithms.ReferenceSetBlocking;
 import com.database.SQLData;
 import com.utils.BlockingAttribute;
+import com.utils.Conf;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.spark.sql.*;
@@ -20,16 +21,14 @@ public class DatasetSimulator {
 
 
 
-    public static void main(String[] args) {
-
-        final int NUMBER_OF_BLOCKING_ATTRS = 3;
+    public static void main(String[] args) throws NoSuchFieldException, IllegalAccessException {
 
         Logger.getLogger("org.apache").setLevel(Level.WARN);
 
         SparkSession spark = SparkSession.builder().appName("Dataset").getOrCreate();
         spark.sparkContext().setLogLevel("ERROR");
 
-        SQLData db = new SQLData(spark, "1k");
+        SQLData db = new SQLData(spark);
 
         Dataset<Row> Alice_DS = db.getAlice();
         Dataset<Row> Bob_DS = db.getBob();
@@ -51,11 +50,11 @@ public class DatasetSimulator {
 
         // distribute blocking attributes in different datasets
         ArrayList<Dataset<Row>> AliceDSs = new ArrayList<>();
-        for (int i = 1; i <= NUMBER_OF_BLOCKING_ATTRS; i++)
+        for (int i = 1; i <= Conf.NUMBER_OF_BLOCKING_ATTRS; i++)
             AliceDSs.add(rsb.mapBlockingAttributes(Alice_DS, i));
 
         ArrayList<Dataset<Row>> BobDSs = new ArrayList<>();
-        for (int i = 1; i <= NUMBER_OF_BLOCKING_ATTRS; i++)
+        for (int i = 1; i <= Conf.NUMBER_OF_BLOCKING_ATTRS; i++)
             BobDSs.add(rsb.mapBlockingAttributes(Bob_DS, i));
         /* data in ds is like
         example of Bob's db for attribute name
@@ -71,18 +70,18 @@ public class DatasetSimulator {
         // classify for each
         // classify respectively for every blocking attribute with 1st reference set, 2nd, etc and add it into an ArrayList.
         ArrayList<Dataset<BlockingAttribute>> ClassifiedAlicesDSs = new ArrayList<>();
-        for (int i = 1; i <= NUMBER_OF_BLOCKING_ATTRS; i++) {
+        for (int i = 1; i <= Conf.NUMBER_OF_BLOCKING_ATTRS; i++) {
             ClassifiedAlicesDSs.add(rsb.classify(
                     AliceDSs.get(i - 1)
-                    , ReferenceSets.select(col("_c" + i)).as(Encoders.STRING()).collectAsList()
+                    , ReferenceSets.select(col("col" + i)).as(Encoders.STRING()).collectAsList()
                     , String.valueOf(i)));
         }
 
         ArrayList<Dataset<BlockingAttribute>> ClassifiedBobsDSs = new ArrayList<>();
-        for (int i = 1; i <= NUMBER_OF_BLOCKING_ATTRS; i++) {
+        for (int i = 1; i <= Conf.NUMBER_OF_BLOCKING_ATTRS; i++) {
             ClassifiedBobsDSs.add(rsb.classify(
                     BobDSs.get(i - 1)
-                    , ReferenceSets.select(col("_c" + i)).as(Encoders.STRING()).collectAsList()
+                    , ReferenceSets.select(col("col" + i)).as(Encoders.STRING()).collectAsList()
                     , String.valueOf(i)));
         }
         /* data in ds is like
@@ -102,7 +101,7 @@ public class DatasetSimulator {
         ExpressionEncoder<Row> encoder = RowEncoder.apply(schema);
 
         Dataset<BlockingAttribute> tempDS =  ClassifiedBobsDSs.get(0);
-        for (int i = 1; i < NUMBER_OF_BLOCKING_ATTRS; i++){
+        for (int i = 1; i < Conf.NUMBER_OF_BLOCKING_ATTRS; i++){
             tempDS = tempDS.union(ClassifiedBobsDSs.get(i));
         }
 
@@ -111,7 +110,7 @@ public class DatasetSimulator {
                 .flatMap(rsb::combineBlocksDS,encoder);
 
         tempDS =  ClassifiedAlicesDSs.get(0);
-        for (int i = 1; i < NUMBER_OF_BLOCKING_ATTRS; i++){
+        for (int i = 1; i < Conf.NUMBER_OF_BLOCKING_ATTRS; i++){
             tempDS = tempDS.union(ClassifiedAlicesDSs.get(i));
         }
 
