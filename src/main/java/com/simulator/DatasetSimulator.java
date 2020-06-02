@@ -2,7 +2,7 @@ package com.simulator;
 
 import com.algorithms.ReferenceSetBlocking;
 import com.database.SQLData;
-import com.utils.BlockingAttribute;
+import com.model.BlockingAttribute;
 import com.utils.Conf;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;

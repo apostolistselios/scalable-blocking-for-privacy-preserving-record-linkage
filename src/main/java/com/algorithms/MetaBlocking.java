@@ -1,8 +1,8 @@
 package com.algorithms;
 
 import com.utils.Bigrams;
-import com.utils.Block;
-import com.utils.BlockElement;
+import com.model.Block;
+import com.model.BlockElement;
 import com.utils.Conf;
 import info.debatty.java.stringsimilarity.SorensenDice;
 import org.apache.spark.sql.Row;

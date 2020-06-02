@@ -1,4 +1,4 @@
-package com.utils;
+package com.model;
 
 import java.io.Serializable;
 

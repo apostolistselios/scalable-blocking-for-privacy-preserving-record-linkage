@@ -1,8 +1,12 @@
 package com.algorithms;
 
+import com.model.Block;
+import com.model.BlockElement;
+import com.model.BlockingAttribute;
 import com.utils.*;
 import org.apache.commons.text.similarity.LevenshteinDistance;
 import org.apache.spark.api.java.JavaPairRDD;
+import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -20,14 +24,89 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.apache.spark.sql.functions.col;
+
 public class ReferenceSetBlocking implements Serializable {
 	
 	private static final long serialVersionUID = -998419074815274020L;
 
     public ReferenceSetBlocking() {}
 
-    public Tuple2<String,String> mapBlockingAttributes(List<String> record , int ba ){
-        return new Tuple2<>(record.get(0), record.get(ba));
+    public JavaRDD<Block> blocking(JavaRDD<List<String>> AlicesRDD, JavaRDD<List<String>> BobsRDD, Dataset<Row> ReferenceSets){
+        ArrayList<JavaPairRDD<String, String>> AliceRDDs = this.mapBlockingAttributes(AlicesRDD);
+        ArrayList<JavaPairRDD<String, String>> BobRDDs = this.mapBlockingAttributes(BobsRDD);
+
+        /*
+         * data in BobsRDD for attribute name is like
+         * (AT24345,ABEDE)
+         * (AA181290,ACO0TA)
+         */
+
+        // classify for each
+        // get the name_pairsRDD, last_nameRDD, etc. and classify it respectively with 1st reference set, 2nd, etc and add it into an ArrayList.
+        ArrayList<JavaPairRDD<String, BlockingAttribute>> ClassifiedAlicesRDDs = this.classify(AliceRDDs, ReferenceSets);
+        ArrayList<JavaPairRDD<String, BlockingAttribute>> ClassifiedBobsRDDs = this.classify(BobRDDs, ReferenceSets);
+
+        /*
+         * data in BobsRDD for classified attribute name is like
+         * (AT24345,BA(S1.2,null,13))
+         * (AA181290,BA(S1.2,null,13))
+         */
+
+        // data in rdds is like (recordID , BlockingAttribute(classID, score))
+        JavaPairRDD<String, Iterable<BlockingAttribute>> BobsRDDGrouped = Transformations.groupRDDs(ClassifiedBobsRDDs);
+        JavaPairRDD<String, Iterable<BlockingAttribute>> AlicesRDDGrouped = Transformations.groupRDDs(ClassifiedAlicesRDDs);
+
+        /*
+         * data in BobsRDD for grouped and classified records  is like
+         * (AA181290,[BA(S1.2,null,13), BA(S2.1,null,14), BA(S3.1,null,15)])
+         * (AT24345,[BA(S1.2,null,13), BA(S2.1,null,14), BA(S3.1,null,15)])
+         */
+
+        JavaPairRDD<String, BlockElement> BobsblocksRDD = BobsRDDGrouped.flatMapToPair(this::combineBlocks);
+        JavaPairRDD<String, BlockElement> AliceblocksRDD = AlicesRDDGrouped.flatMapToPair(this::combineBlocks);
+
+        /*
+         * data in BobsblocksRDD  is like
+         * (S1.2-S2.1,BA(S1.2,AA181290,13))
+         */
+
+        // combine the 2 different databases Alices and Bob.
+        JavaPairRDD<String, Tuple2<Iterable<BlockElement>, Iterable<BlockElement>>> CombinedBlocks = BobsblocksRDD.cogroup(AliceblocksRDD);
+
+        // filter block which have only one source
+        JavaPairRDD<String, Tuple2<Iterable<BlockElement>, Iterable<BlockElement>>> filteredBlocks = CombinedBlocks.filter(block -> {
+            return block._2()._1().iterator().hasNext() && block._2()._2().iterator().hasNext();
+        });
+
+        /*
+         * Data in filteredBlocks is like
+         * (S3.1-S1.2,([BA(S3.1,AA181290,15), BA(S3.1,AT24345,15)],[BA(S3.1,AA181290,15), BA(S3.1,AT24345,15)]))
+         */
+
+        // Data in CombinedBlocks are like  last BobsblocksRDD representation but includes records from both dbs
+        JavaRDD<Block> blocks = filteredBlocks.map(this::sortBlockElements);
+
+        /*
+         * Data in blocks is like
+         * [BLOCK: S3.1-S1.2 - Rank: 60 - [BA(S3.1,BAT24345,15), BA(S3.1,BAA181290,15), BA(S3.1,AAA181290,15), BA(S3.1,AAT24345,15)]]
+         */
+        return blocks;
+    }
+
+//    public Tuple2<String,String> mapBlockingAttributes(List<String> record , int ba ){
+//        return new Tuple2<>(record.get(0), record.get(ba));
+//    }
+
+    public ArrayList<JavaPairRDD<String, String>> mapBlockingAttributes(JavaRDD<List<String>> rdd) {
+        ArrayList<JavaPairRDD<String, String>> temp = new ArrayList<>();
+        for (int i = 1; i <= Conf.NUM_OF_BLOCKING_ATTRS; i++) {
+            // copy i to final variable just to pass it as parameter
+            int finalI = i;
+            temp.add(rdd.mapToPair(record -> new Tuple2<>(record.get(0), record.get(finalI))));
+        }
+
+        return temp;
     }
 
 //    public  Dataset<Row> mapBlockingAttributes(Dataset<Row> dbDS , int ba ){
@@ -45,8 +124,20 @@ public class ReferenceSetBlocking implements Serializable {
         return dbDS.select(Conf.ID, attributeName);
     }
 
-    public JavaPairRDD<String, BlockingAttribute> classify(JavaPairRDD<String, String> baRDD, List<String> rs,
-                                                                           String rsnum) {
+    public ArrayList<JavaPairRDD<String, BlockingAttribute>> classify(ArrayList<JavaPairRDD<String, String>> rdd, Dataset<Row> referenceSets) {
+        ArrayList<JavaPairRDD<String, BlockingAttribute>> temp = new ArrayList<>();
+        for (int i = 1; i <= Conf.NUM_OF_BLOCKING_ATTRS; i++) {
+            temp.add(this.classifyBlockingAttribute(
+                    rdd.get(i - 1)
+                    , referenceSets.select(col("col" + i)).as(Encoders.STRING()).collectAsList()
+                    , String.valueOf(i)));
+        }
+
+        return temp;
+    }
+
+    public JavaPairRDD<String, BlockingAttribute> classifyBlockingAttribute(JavaPairRDD<String, String> baRDD, List<String> rs,
+                                                                            String rsnum) {
         return baRDD.mapValues(ba -> {
             String classID;
             int pos;
