@@ -130,21 +130,27 @@ public class ReferenceSetBlocking implements Serializable {
                          ArrayList<JavaPairRDD<String, BlockingAttribute>> classifiedRddB,
                          Dataset<Row> referenceSets) {
 
+        int s = 1 ; // count for samples
         for (int i = 1; i <= Conf.NUM_OF_BLOCKING_ATTRS; i++) {
+            List<String> referenceSetsList = referenceSets.select(col("col" + i)).distinct().as(Encoders.STRING()).collectAsList();
             for(int j = 0; j < Conf.NUM_OF_SAMPLES; j++) {
-                List<String> referenceSetsList = referenceSets.select(col("col" + i)).as(Encoders.STRING()).collectAsList();
-                DurstenfeldShuffle.shuffle(referenceSetsList);
-                referenceSetsList = referenceSetsList.stream().limit(Conf.RS_SIZE).sorted().collect(Collectors.toList());
+
+                List<String> reference_set_values =  DurstenfeldShuffle.shuffle(referenceSetsList).stream().limit(Conf.RS_SIZE).sorted().collect(Collectors.toList());
+
 
                 classifiedRddA.add(this.classifyBlockingAttribute(
                         rddA.get(i - 1)
-                        , referenceSetsList
-                        , String.valueOf(i)));
+                        , reference_set_values
+                        , String.valueOf(s)));
                 classifiedRddB.add(this.classifyBlockingAttribute(
                         rddB.get(i - 1)
-                        , referenceSetsList
-                        , String.valueOf(i)));
+                        , reference_set_values
+                        , String.valueOf(s)));
+
+                s ++ ;
             }
+
+
         }
     }
 
@@ -163,7 +169,7 @@ public class ReferenceSetBlocking implements Serializable {
 
             int d2 = LevenshteinDistance.getDefaultInstance().apply(ba.toLowerCase(), rs.get(pos).toLowerCase()) ;
             // return a Record object
-            if (d1 <= d2 ) {
+            if (d1 < d2 ) {
                 classID = "S" + rsnum + "." + pos; //(pos-1) +1
                 return new BlockingAttribute(classID, d1);
             }

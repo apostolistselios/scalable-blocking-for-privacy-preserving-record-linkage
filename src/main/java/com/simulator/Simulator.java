@@ -5,29 +5,23 @@ import com.algorithms.MetaBlocking;
 import com.algorithms.ReferenceSetBlocking;
 import com.database.SQLData;
 import com.model.Block;
-import com.model.BlockElement;
-import com.model.BlockingAttribute;
 import com.utils.Conf;
 import com.utils.Transformations;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.spark.SparkConf;
-import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.function.FilterFunction;
 import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder;
 import org.apache.spark.sql.catalyst.encoders.RowEncoder;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
-import scala.Tuple2;
 
-import java.util.*;
-
-import static org.apache.spark.sql.functions.col;
+import java.util.List;
+import java.util.Scanner;
 
 public class Simulator {
 
@@ -35,7 +29,7 @@ public class Simulator {
 
         Logger.getLogger("org.apache").setLevel(Level.WARN);
         SparkConf conf = new SparkConf().setAppName("JavaRDD")
-                .set("spark.executor.memory", Conf.MEMORY);
+                .set("spark.executor.memory", "6g");
 
         SparkSession spark = SparkSession.builder().config(conf).getOrCreate();
         spark.sparkContext().setLogLevel("ERROR");
@@ -107,7 +101,6 @@ public class Simulator {
         System.out.println("Execution time: " + timer + " seconds");
         System.out.println(tp);
 //        System.out.println(matchesSize);
-        System.out.println(matches.count());
         System.out.println("Possible Recall (it may go above 1) : " + (double) tp / commons );
 //        System.out.println("Possible Precision (it may go above 1) : " + (double) tp / matchesSize );
 

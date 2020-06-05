@@ -1,13 +1,10 @@
 package com.utils;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
-import static com.sun.tools.javac.jvm.ByteCodes.swap;
-
 public abstract class DurstenfeldShuffle {
-    public static void shuffle(List <String> arr){
+    public static List<String> shuffle(List <String> arr){
         // Creating a object for Random class
         Random r = new Random();
 
@@ -16,6 +13,8 @@ public abstract class DurstenfeldShuffle {
         for (int i = Conf.RS_SIZE - 1; i > 0; --i) {
             swap(arr, i, r.nextInt(i+1));
         }
+
+        return arr ;
     }
 
     private static void swap(List<String> data, int i, int j) {

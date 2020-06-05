@@ -6,7 +6,7 @@ public class BinarySearch {
     public static int binarySearch(List<String> arr, int low, int high, String x){
 
         if (high >= low) {
-            int mid = low +(int) Math.ceil((double) (high - low ) / (double) 2 ) ;
+            int mid = (int) (low +(int) (double) (high - low ) / (double) 2);
 
             // If the element is present at the
             // middle itself
