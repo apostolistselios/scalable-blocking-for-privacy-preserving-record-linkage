@@ -44,8 +44,8 @@ public class ReferenceSetBlocking implements Serializable {
 
         // classify for each
         // get the name_pairsRDD, last_nameRDD, etc. and classify it respectively with 1st reference set, 2nd, etc and add it into an ArrayList.
-        ArrayList<JavaPairRDD<String, BlockingAttribute>> ClassifiedAlicesRDDs = this.classify(AliceRDDs, ReferenceSets);
-        ArrayList<JavaPairRDD<String, BlockingAttribute>> ClassifiedBobsRDDs = this.classify(BobRDDs, ReferenceSets);
+        ArrayList<JavaPairRDD<String, BlockingAttribute>> ClassifiedAlicesRDDs = new ArrayList<>(), ClassifiedBobsRDDs = new ArrayList<>();
+        this.classify(AliceRDDs, BobRDDs, ClassifiedAlicesRDDs, ClassifiedBobsRDDs, ReferenceSets);
 
         /*
          * data in BobsRDD for classified attribute name is like
@@ -63,8 +63,8 @@ public class ReferenceSetBlocking implements Serializable {
          * (AT24345,[BA(S1.2,null,13), BA(S2.1,null,14), BA(S3.1,null,15)])
          */
 
-        JavaPairRDD<String, BlockElement> BobsblocksRDD = BobsRDDGrouped.flatMapToPair(this::combineBlocks);
-        JavaPairRDD<String, BlockElement> AliceblocksRDD = AlicesRDDGrouped.flatMapToPair(this::combineBlocks);
+        JavaPairRDD<String, BlockElement> BobsblocksRDD = BobsRDDGrouped.flatMapToPair(this::combineBlocks2);
+        JavaPairRDD<String, BlockElement> AliceblocksRDD = AlicesRDDGrouped.flatMapToPair(this::combineBlocks2);
 
         /*
          * data in BobsblocksRDD  is like
@@ -124,16 +124,28 @@ public class ReferenceSetBlocking implements Serializable {
         return dbDS.select(Conf.ID, attributeName);
     }
 
-    public ArrayList<JavaPairRDD<String, BlockingAttribute>> classify(ArrayList<JavaPairRDD<String, String>> rdd, Dataset<Row> referenceSets) {
-        ArrayList<JavaPairRDD<String, BlockingAttribute>> temp = new ArrayList<>();
-        for (int i = 1; i <= Conf.NUM_OF_BLOCKING_ATTRS; i++) {
-            temp.add(this.classifyBlockingAttribute(
-                    rdd.get(i - 1)
-                    , referenceSets.select(col("col" + i)).as(Encoders.STRING()).collectAsList()
-                    , String.valueOf(i)));
-        }
+    public void classify(ArrayList<JavaPairRDD<String, String>> rddA,
+                         ArrayList<JavaPairRDD<String, String>> rddB,
+                         ArrayList<JavaPairRDD<String, BlockingAttribute>> classifiedRddA,
+                         ArrayList<JavaPairRDD<String, BlockingAttribute>> classifiedRddB,
+                         Dataset<Row> referenceSets) {
 
-        return temp;
+        for (int i = 1; i <= Conf.NUM_OF_BLOCKING_ATTRS; i++) {
+            for(int j = 0; j < Conf.NUM_OF_SAMPLES; j++) {
+                List<String> referenceSetsList = referenceSets.select(col("col" + i)).as(Encoders.STRING()).collectAsList();
+                DurstenfeldShuffle.shuffle(referenceSetsList);
+                referenceSetsList = referenceSetsList.stream().limit(Conf.RS_SIZE).sorted().collect(Collectors.toList());
+
+                classifiedRddA.add(this.classifyBlockingAttribute(
+                        rddA.get(i - 1)
+                        , referenceSetsList
+                        , String.valueOf(i)));
+                classifiedRddB.add(this.classifyBlockingAttribute(
+                        rddB.get(i - 1)
+                        , referenceSetsList
+                        , String.valueOf(i)));
+            }
+        }
     }
 
     public JavaPairRDD<String, BlockingAttribute> classifyBlockingAttribute(JavaPairRDD<String, String> baRDD, List<String> rs,
@@ -146,10 +158,10 @@ public class ReferenceSetBlocking implements Serializable {
 
             int d1 = 1000000;
             if (pos -1 > 0 ) {
-                d1 = LevenshteinDistance.getDefaultInstance().apply(ba, rs.get(pos-1)) ;
+                d1 = LevenshteinDistance.getDefaultInstance().apply(ba.toLowerCase(), rs.get(pos-1).toLowerCase()) ;
             }
 
-            int d2 = LevenshteinDistance.getDefaultInstance().apply(ba, rs.get(pos)) ;
+            int d2 = LevenshteinDistance.getDefaultInstance().apply(ba.toLowerCase(), rs.get(pos).toLowerCase()) ;
             // return a Record object
             if (d1 <= d2 ) {
                 classID = "S" + rsnum + "." + pos; //(pos-1) +1
@@ -201,15 +213,41 @@ public class ReferenceSetBlocking implements Serializable {
                 nextBA = it.next();
                 blockID = currentBA.getClassID() + "-" + nextBA.getClassID();
                 currentBA.setRecordID(baTuple._1());
-                blocks.add(new Tuple2<>(blockID, new BlockElement(currentBA.getRecordID(),currentBA.getScore())));
+                blocks.add(new Tuple2<>(blockID, new BlockElement(currentBA.getRecordID(),currentBA.getScore() + nextBA.getScore())));
                 currentBA = nextBA;
             } else {
                 blockID = currentBA.getClassID() + "-" + firstBA.getClassID();
                 currentBA.setRecordID(baTuple._1());
-                blocks.add(new Tuple2<>(blockID, new BlockElement(currentBA.getRecordID(),currentBA.getScore())));
+                blocks.add(new Tuple2<>(blockID, new BlockElement(currentBA.getRecordID(),currentBA.getScore() + firstBA.getScore())));
                 break;
             }
         }
+        return blocks.iterator();
+    }
+
+    public Iterator<Tuple2<String, BlockElement>> combineBlocks2(Tuple2<String, Iterable<BlockingAttribute>> baTuple) {
+        ArrayList<Tuple2<String, BlockElement>> blocks = new ArrayList<>();
+
+        List<BlockingAttribute> blockingAttributesList = new ArrayList<>();
+        baTuple._2().forEach(blockingAttributesList::add);
+        int score = 0 ;
+        for(BlockingAttribute ba : blockingAttributesList){ score += ba.getScore(); }
+
+
+        int i = 0 ;
+        while (true){
+            String blockID;
+            if (i == blockingAttributesList.size() -1){
+
+                blockID = blockingAttributesList.get(i).getClassID() + "-" + blockingAttributesList.get(0).getClassID();
+                blocks.add(new Tuple2<>(blockID, new BlockElement(baTuple._1(),score)));
+                break;
+            }
+            blockID = blockingAttributesList.get(i).getClassID() + "-" + blockingAttributesList.get(i+1).getClassID();
+            blocks.add(new Tuple2<>(blockID, new BlockElement(baTuple._1(),score)));
+            i ++ ;
+        }
+
         return blocks.iterator();
     }
 

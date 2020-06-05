@@ -27,8 +27,7 @@ public class SQLData {
                 .limit(Conf.DB_SIZE);
 
         this.referenceSet = spark.read().format("csv").option("header", "true")
-                .load(Conf.HDFS_DIRECTORY + Conf.RS_FILE_NAME)
-                .limit(Conf.RS_SIZE);
+                .load(Conf.HDFS_DIRECTORY + Conf.RS_FILE_NAME);
     }
 
     public Dataset<Row> getAlice() {

@@ -35,7 +35,7 @@ public class Simulator {
 
         Logger.getLogger("org.apache").setLevel(Level.WARN);
         SparkConf conf = new SparkConf().setAppName("JavaRDD")
-                .set("spark.executor.memory", "5g");
+                .set("spark.executor.memory", Conf.MEMORY);
 
         SparkSession spark = SparkSession.builder().config(conf).getOrCreate();
         spark.sparkContext().setLogLevel("ERROR");
@@ -83,8 +83,8 @@ public class Simulator {
         ExpressionEncoder<Row> possibleMatchesEncoder = RowEncoder.apply(possiblesMatchesSchema);
 
         // create possibleMatchesDS that contains only unique rows
-        Dataset<Row> possibleMatchesDS = spark.createDataset(blocks.flatMap(block -> mb.createPossibleMatches(block,Conf.WINDOW_SIZE)).rdd(),
-                possibleMatchesEncoder) ;
+        Dataset<Row> possibleMatchesDS = spark.createDataset(blocks.flatMap(mb::createPossibleMatches).rdd(),
+                possibleMatchesEncoder).distinct() ;
 
         Dataset<Row> possibleMatchesWithBloomsDS = possibleMatchesDS.join(AliceBloomsDS,
                 possibleMatchesDS.col("record1").equalTo(AliceBloomsDS.col("recordID")))
@@ -92,23 +92,24 @@ public class Simulator {
                 .join(BobsBloomsDS,possibleMatchesDS.col("record2").equalTo(BobsBloomsDS.col("recordID")))
                 .drop("recordID").withColumnRenamed("bloom","bloom2") ;
 
-        Dataset<Row> matches = possibleMatchesWithBloomsDS.filter((FilterFunction<Row>) row -> mb.isMatch(row,Conf.MATCHING_THRESHOLD)) ;
+        Dataset<Row> matches = possibleMatchesWithBloomsDS.filter((FilterFunction<Row>) mb::isMatch).drop("bloom1", "bloom2");
 
-        List<Row> matchesList = matches.collectAsList();
+//        List<Row> matchesList = matches.collectAsList();
 
-        long matchesSize = matchesList.size();
-        long tp =  matchesList.stream().filter(row -> {
+//        long matchesSize = matches.count();
+        long tp =  matches.filter((FilterFunction<Row>) row -> {
             return row.getString(0).substring(1).equals(row.getString(1).substring(1));
         }).count();
-        long fp = matchesSize - tp ;
+//        long fp = matchesSize - tp ;
 
         long commons = (long) (Conf.DB_SIZE * Conf.COMMON_RECORDS);
         long timer = (System.currentTimeMillis() - t0) / 1000;
         System.out.println("Execution time: " + timer + " seconds");
         System.out.println(tp);
-        System.out.println(matchesSize);
+//        System.out.println(matchesSize);
+        System.out.println(matches.count());
         System.out.println("Possible Recall (it may go above 1) : " + (double) tp / commons );
-        System.out.println("Possible Precision (it may go above 1) : " + (double) tp / matchesSize );
+//        System.out.println("Possible Precision (it may go above 1) : " + (double) tp / matchesSize );
 
 //        System.out.println(matches);
 //        System.out.println("MATCHES");

@@ -24,13 +24,14 @@ public class MetaBlocking implements Serializable {
 	public MetaBlocking () {}
 	
 
-	public Iterator<Row> createPossibleMatches(Block block, int window){
+	public Iterator<Row> createPossibleMatches(Block block){
 		List<Row> recordPairs = new ArrayList<>();
 		List<BlockElement> baList = block.getBAList();
 
 		for (int i = 1; i < baList.size(); i++) {
 			String record1 = baList.get(i).getRecordID();
-			for (int j = i - 1; j >= i - window + 1 && j >= 0; j--) {
+			int windowLimit = Conf.WINDOW_SIZE;
+			for (int j = i - 1; j >= i - windowLimit + 1 && j >= 0; j--) {
 				String record2 = baList.get(j).getRecordID();
 
 				char firstcharOfrecord1 = record1.charAt(0);
@@ -44,6 +45,9 @@ public class MetaBlocking implements Serializable {
 						recordPairs.add(RowFactory.create(record1,record2));
 					else
 						recordPairs.add(RowFactory.create(record2,record1));
+				}
+				else {
+					windowLimit++;
 				}
 			}
 		}
@@ -73,7 +77,7 @@ public class MetaBlocking implements Serializable {
 	}
 
 
-	public boolean isMatch(Row row,double THRESHOLD) throws  Exception{
+	public boolean isMatch(Row row) throws  Exception{
 		byte[] bf1 = row.getAs("bloom1");
 		byte[] bf2 = row.getAs("bloom2");
 
@@ -81,6 +85,6 @@ public class MetaBlocking implements Serializable {
 		double dCof = sd.similarity(Arrays.toString(bf1), Arrays.toString(bf2));
 
 		// (double) (2 * BitSet.valueOf(Bytes.concat(bf1, bf2)).cardinality()) / (BitSet.valueOf(bf1).cardinality() + BitSet.valueOf(bf2).cardinality());
-		return dCof > THRESHOLD;
+		return dCof > Conf.MATCHING_THRESHOLD;
 	}
 }

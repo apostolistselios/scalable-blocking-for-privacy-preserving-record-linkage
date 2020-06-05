@@ -26,7 +26,7 @@ public class Transformations {
     public static JavaPairRDD<String, Iterable<BlockingAttribute>> groupRDDs(ArrayList<JavaPairRDD<String, BlockingAttribute>> rdd){
         JavaPairRDD<String, BlockingAttribute> temp = rdd.get(0);
 
-        for (int i = 1; i < Conf.NUM_OF_BLOCKING_ATTRS; i++){
+        for (int i = 1; i < rdd.size(); i++){
             temp = temp.union(rdd.get(i));
         }
 
