@@ -4,9 +4,14 @@ import com.utils.Bigrams;
 import com.model.Block;
 import com.model.BlockElement;
 import com.utils.Conf;
+import com.utils.Encoders;
 import info.debatty.java.stringsimilarity.SorensenDice;
+import org.apache.spark.api.java.JavaRDD;
+import org.apache.spark.api.java.function.FilterFunction;
+import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.util.sketch.BloomFilter;
 
 import java.io.ByteArrayOutputStream;
@@ -17,14 +22,45 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
-public class MetaBlocking implements Serializable {
+public abstract class MetaBlocking implements Serializable {
 	
 	private static final long serialVersionUID = 5317646661733959435L;
 
 	public MetaBlocking () {}
-	
 
-	public Iterator<Row> createPossibleMatches(Block block){
+	public static Dataset<Row> metaBocking(SparkSession spark,
+										   JavaRDD<List<String>> alicesRDD,
+										   JavaRDD<List<String>> bobsRDD,
+										   JavaRDD<Block> blocks) {
+
+		// Create datasets with records' blooms filters
+		Dataset<Row> AliceBloomsDS = spark.createDataset(
+				alicesRDD.map(MetaBlocking::createBloomFilters).rdd()
+				, Encoders.bloomFilter()
+		);
+		Dataset<Row> BobsBloomsDS = spark.createDataset(
+				bobsRDD.map(MetaBlocking::createBloomFilters).rdd()
+				, Encoders.bloomFilter()
+		);
+
+		// create possibleMatchesDS that contains only unique rows
+		Dataset<Row> possibleMatchesDS = spark.createDataset(
+				blocks.flatMap(MetaBlocking::createPossibleMatches).rdd()
+				, Encoders.possibleMatches()
+		).distinct();
+
+		Dataset<Row> possibleMatchesWithBloomsDS = possibleMatchesDS.join(AliceBloomsDS,
+				possibleMatchesDS.col("record1").equalTo(AliceBloomsDS.col("recordID")))
+				.drop("recordID").withColumnRenamed("bloom","bloom1")
+				.join(BobsBloomsDS,possibleMatchesDS.col("record2").equalTo(BobsBloomsDS.col("recordID")))
+				.drop("recordID").withColumnRenamed("bloom","bloom2") ;
+
+//		Dataset<Row> matches = possibleMatchesWithBloomsDS.filter((FilterFunction<Row>) mb::isMatch).drop("bloom1", "bloom2");
+
+		return possibleMatchesDS;
+	}
+
+	public static Iterator<Row> createPossibleMatches(Block block){
 		List<Row> recordPairs = new ArrayList<>();
 		List<BlockElement> baList = block.getBAList();
 
@@ -55,7 +91,7 @@ public class MetaBlocking implements Serializable {
 	}
 
 
-	public Row createBloomFilters(List<String> record) {
+	public static Row createBloomFilters(List<String> record) {
 		// join all attribute
 		List<String> attributesBigrams = Bigrams.ngrams(2, String.join("", record.subList(1, Conf.NUM_OF_BLOCKING_ATTRS + 1)));
 		// create bloom filter
@@ -77,7 +113,7 @@ public class MetaBlocking implements Serializable {
 	}
 
 
-	public boolean isMatch(Row row) throws  Exception{
+	public static boolean isMatch(Row row) throws  Exception{
 		byte[] bf1 = row.getAs("bloom1");
 		byte[] bf2 = row.getAs("bloom2");
 

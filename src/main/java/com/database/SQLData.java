@@ -28,6 +28,8 @@ public class SQLData {
 
         this.referenceSet = spark.read().format("csv").option("header", "true")
                 .load(Conf.HDFS_DIRECTORY + Conf.RS_FILE_NAME);
+
+        System.out.println("Data from DB loaded");
     }
 
     public Dataset<Row> getAlice() {
