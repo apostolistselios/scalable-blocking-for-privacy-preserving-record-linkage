@@ -19,9 +19,9 @@ public class BinarySearch {
             if ( x.substring(0,Conf.NUM_OF_BINARY_SEARCH_CHARS).compareTo(arr.get(mid).substring(0,Conf.NUM_OF_BINARY_SEARCH_CHARS)) > 0  ) {
                 return binarySearch(arr, mid + 1, high, x);
             }
-            else if (mid == arr.size()-1) {
-                return mid;
-            }
+//            else if (mid == arr.size()-1) {
+//                return mid;
+//            }
 
             // Else the element can only be present
             // in left subarray
@@ -32,7 +32,7 @@ public class BinarySearch {
         // We reach here when element is not present
         // in array
         if (high < 0) {return high +1  ;}
-        else if (high >3) {return high-1 ; }
+        else if (high > Conf.RS_SIZE -1 ) {return high-1 ; }
         else  return high  ;
     }
 }

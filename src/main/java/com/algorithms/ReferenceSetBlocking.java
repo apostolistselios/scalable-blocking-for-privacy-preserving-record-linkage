@@ -217,12 +217,19 @@ public class ReferenceSetBlocking implements Serializable {
             String blockID;
             if (it.hasNext()) {
                 nextBA = it.next();
-                blockID = currentBA.getClassID() + "-" + nextBA.getClassID();
+                if (currentBA.getClassID().compareTo(nextBA.getClassID()) > 0)
+                    blockID = nextBA.getClassID() + "-" + currentBA.getClassID();
+                else
+                    blockID = currentBA.getClassID() + "-" + nextBA.getClassID();
+
                 currentBA.setRecordID(baTuple._1());
                 blocks.add(new Tuple2<>(blockID, new BlockElement(currentBA.getRecordID(),currentBA.getScore() + nextBA.getScore())));
                 currentBA = nextBA;
             } else {
-                blockID = currentBA.getClassID() + "-" + firstBA.getClassID();
+                if (currentBA.getClassID().compareTo(firstBA.getClassID()) > 0)
+                    blockID = firstBA.getClassID() + "-" + currentBA.getClassID();
+                else
+                    blockID = currentBA.getClassID() + "-" + firstBA.getClassID();
                 currentBA.setRecordID(baTuple._1());
                 blocks.add(new Tuple2<>(blockID, new BlockElement(currentBA.getRecordID(),currentBA.getScore() + firstBA.getScore())));
                 break;
