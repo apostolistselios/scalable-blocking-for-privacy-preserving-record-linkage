@@ -11,7 +11,7 @@ public abstract class DurstenfeldShuffle {
         // Start from the last element and swap one by one. We don't
         // need to run for the first element that's why i > 0
         for (int i = Conf.RS_SIZE - 1; i > 0; --i) {
-            swap(arr, i, r.nextInt(i+1));
+            swap(arr, i, r.nextInt(arr.size()-1));
         }
 
         return arr ;

@@ -63,8 +63,8 @@ public class ReferenceSetBlocking implements Serializable {
          * (AT24345,[BA(S1.2,null,13), BA(S2.1,null,14), BA(S3.1,null,15)])
          */
 
-        JavaPairRDD<String, BlockElement> BobsblocksRDD = BobsRDDGrouped.flatMapToPair(this::combineBlocks2);
-        JavaPairRDD<String, BlockElement> AliceblocksRDD = AlicesRDDGrouped.flatMapToPair(this::combineBlocks2);
+        JavaPairRDD<String, BlockElement> BobsblocksRDD = BobsRDDGrouped.flatMapToPair(this::combineBlocks);
+        JavaPairRDD<String, BlockElement> AliceblocksRDD = AlicesRDDGrouped.flatMapToPair(this::combineBlocks);
 
         /*
          * data in BobsblocksRDD  is like

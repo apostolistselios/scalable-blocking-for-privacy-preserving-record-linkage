@@ -86,12 +86,12 @@ public class Simulator {
                 .join(BobsBloomsDS,possibleMatchesDS.col("record2").equalTo(BobsBloomsDS.col("recordID")))
                 .drop("recordID").withColumnRenamed("bloom","bloom2") ;
 
-        Dataset<Row> matches = possibleMatchesWithBloomsDS.filter((FilterFunction<Row>) mb::isMatch).drop("bloom1", "bloom2");
+//        Dataset<Row> matches = possibleMatchesWithBloomsDS.filter((FilterFunction<Row>) mb::isMatch).drop("bloom1", "bloom2");
 
 //        List<Row> matchesList = matches.collectAsList();
 
 //        long matchesSize = matches.count();
-        long tp =  matches.filter((FilterFunction<Row>) row -> {
+        long tp =  possibleMatchesDS.filter((FilterFunction<Row>) row -> {
             return row.getString(0).substring(1).equals(row.getString(1).substring(1));
         }).count();
 //        long fp = matchesSize - tp ;
