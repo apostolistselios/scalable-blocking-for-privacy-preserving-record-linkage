@@ -271,7 +271,7 @@ public abstract class ReferenceSetBlocking implements Serializable {
             String classID;
             int pos;
 
-            pos = BinarySearch.binarySearch(rs,0,rs.size()-1, ba)  ;// should implement binary search on prefixes here to work
+            pos = BinarySearch.binarySearch(rs,0,rs.size()-1, ba)  ;
 
             int d1 = 1000000;
             if (pos -1 > 0 ) d1 = LevenshteinDistance.getDefaultInstance().apply(ba, rs.get(pos - 1));
@@ -317,32 +317,6 @@ public abstract class ReferenceSetBlocking implements Serializable {
             blockID = currentBA.getClassID() + "-" + firstBA.getClassID();
         currentBA.setRecordID(baTuple._1());
         blocks.add(new Tuple2<>(blockID, new BlockElement(currentBA.getRecordID(),currentBA.getScore() + firstBA.getScore())));
-    }
-
-    public static Iterator<Tuple2<String, BlockElement>> combineBlocks2(Tuple2<String, Iterable<BlockingAttribute>> baTuple) {
-        ArrayList<Tuple2<String, BlockElement>> blocks = new ArrayList<>();
-
-        List<BlockingAttribute> blockingAttributesList = new ArrayList<>();
-        baTuple._2().forEach(blockingAttributesList::add);
-        int score = 0 ;
-        for(BlockingAttribute ba : blockingAttributesList){ score += ba.getScore(); }
-
-
-        int i = 0 ;
-        while (true){
-            String blockID;
-            if (i == blockingAttributesList.size() -1){
-
-                blockID = blockingAttributesList.get(i).getClassID() + "-" + blockingAttributesList.get(0).getClassID();
-                blocks.add(new Tuple2<>(blockID, new BlockElement(baTuple._1(),score)));
-                break;
-            }
-            blockID = blockingAttributesList.get(i).getClassID() + "-" + blockingAttributesList.get(i+1).getClassID();
-            blocks.add(new Tuple2<>(blockID, new BlockElement(baTuple._1(),score)));
-            i ++ ;
-        }
-
-        return blocks.iterator();
     }
 
     public static Block sortBlockElements(Tuple2<String, Tuple2<Iterable<BlockElement>, Iterable<BlockElement>>> block){
