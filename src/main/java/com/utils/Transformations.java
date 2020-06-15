@@ -17,7 +17,7 @@ public class Transformations {
             // change id to include source
             list.add(prefix + row.getString(0));
             for (int i = 1; i < row.size(); i++) {
-                list.add(row.getString(i));
+                list.add(row.getString(i).toUpperCase());
             }
             return list;
         });

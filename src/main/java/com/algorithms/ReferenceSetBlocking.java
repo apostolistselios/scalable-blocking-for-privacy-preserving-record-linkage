@@ -3,10 +3,14 @@ package com.algorithms;
 import com.model.Block;
 import com.model.BlockElement;
 import com.model.BlockingAttribute;
-import com.utils.*;
+import com.utils.BinarySearch;
+import com.utils.Conf;
+import com.utils.DurstenfeldShuffle;
+import com.utils.Transformations;
 import org.apache.commons.text.similarity.LevenshteinDistance;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
+import org.apache.spark.api.java.function.FilterFunction;
 import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -130,7 +134,11 @@ public abstract class ReferenceSetBlocking implements Serializable {
 
         int s = 1 ; // count for samples
         for (int i = 1; i <= Conf.NUM_OF_BLOCKING_ATTRS; i++) {
-            List<String> referenceSetsList = referenceSets.select(col("col" + i)).distinct().as(Encoders.STRING()).collectAsList();
+            List<String> referenceSetsList = referenceSets.select(col("col" + i))
+                    .na().drop().distinct().filter((FilterFunction<Row>) row -> row.getString(0).length() > 0 )
+                    .map((MapFunction<Row, String>)  row -> row.getString(0).toUpperCase(), Encoders.STRING())
+                    .collectAsList();
+
             for(int j = 0; j < Conf.NUM_OF_SAMPLES; j++) {
 
                 List<String> reference_set_values =  DurstenfeldShuffle.shuffle(referenceSetsList).stream().limit(Conf.RS_SIZE).sorted().collect(Collectors.toList());
@@ -162,10 +170,10 @@ public abstract class ReferenceSetBlocking implements Serializable {
 
             int d1 = 1000000;
             if (pos -1 > 0 ) {
-                d1 = LevenshteinDistance.getDefaultInstance().apply(ba.toLowerCase(), rs.get(pos-1).toLowerCase()) ;
+                d1 = LevenshteinDistance.getDefaultInstance().apply(ba, rs.get(pos-1)) ;
             }
 
-            int d2 = LevenshteinDistance.getDefaultInstance().apply(ba.toLowerCase(), rs.get(pos).toLowerCase()) ;
+            int d2 = LevenshteinDistance.getDefaultInstance().apply(ba, rs.get(pos)) ;
             // return a Record object
             if (d1 < d2 ) {
                 classID = "S" + rsnum + "." + pos; //(pos-1) +1

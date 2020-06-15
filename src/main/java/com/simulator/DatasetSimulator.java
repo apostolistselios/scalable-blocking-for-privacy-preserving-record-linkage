@@ -46,16 +46,15 @@ public class DatasetSimulator {
         System.out.println("Data form DB loaded");
         long t0 = System.currentTimeMillis();
 
-        ReferenceSetBlocking rsb = new ReferenceSetBlocking();
 
         // distribute blocking attributes in different datasets
         ArrayList<Dataset<Row>> AliceDSs = new ArrayList<>();
         for (int i = 1; i <= Conf.NUM_OF_BLOCKING_ATTRS; i++)
-            AliceDSs.add(rsb.mapBlockingAttributes(Alice_DS, i));
+            AliceDSs.add(ReferenceSetBlocking.mapBlockingAttributes(Alice_DS, i));
 
         ArrayList<Dataset<Row>> BobDSs = new ArrayList<>();
         for (int i = 1; i <= Conf.NUM_OF_BLOCKING_ATTRS; i++)
-            BobDSs.add(rsb.mapBlockingAttributes(Bob_DS, i));
+            BobDSs.add(ReferenceSetBlocking.mapBlockingAttributes(Bob_DS, i));
         /* data in ds is like
         example of Bob's db for attribute name
         +---+-----+
@@ -71,7 +70,7 @@ public class DatasetSimulator {
         // classify respectively for every blocking attribute with 1st reference set, 2nd, etc and add it into an ArrayList.
         ArrayList<Dataset<BlockingAttribute>> ClassifiedAlicesDSs = new ArrayList<>();
         for (int i = 1; i <= Conf.NUM_OF_BLOCKING_ATTRS; i++) {
-            ClassifiedAlicesDSs.add(rsb.classify(
+            ClassifiedAlicesDSs.add(ReferenceSetBlocking.classify(
                     AliceDSs.get(i - 1)
                     , ReferenceSets.select(col("col" + i)).as(Encoders.STRING()).collectAsList()
                     , String.valueOf(i)));
@@ -79,7 +78,7 @@ public class DatasetSimulator {
 
         ArrayList<Dataset<BlockingAttribute>> ClassifiedBobsDSs = new ArrayList<>();
         for (int i = 1; i <= Conf.NUM_OF_BLOCKING_ATTRS; i++) {
-            ClassifiedBobsDSs.add(rsb.classify(
+            ClassifiedBobsDSs.add(ReferenceSetBlocking.classify(
                     BobDSs.get(i - 1)
                     , ReferenceSets.select(col("col" + i)).as(Encoders.STRING()).collectAsList()
                     , String.valueOf(i)));
@@ -107,7 +106,7 @@ public class DatasetSimulator {
 
         Dataset<Row> BobsBlocksDS = tempDS
                 .groupBy("recordID").agg(functions.collect_list("classID"),functions.collect_list("score"))
-                .flatMap(rsb::combineBlocksDS,encoder);
+                .flatMap(ReferenceSetBlocking::combineBlocksDS,encoder);
 
         tempDS =  ClassifiedAlicesDSs.get(0);
         for (int i = 1; i < Conf.NUM_OF_BLOCKING_ATTRS; i++){
@@ -116,7 +115,7 @@ public class DatasetSimulator {
 
         Dataset<Row> AlicesBlocksDS = tempDS
                 .groupBy("recordID").agg(functions.collect_list("classID"),functions.collect_list("score"))
-                .flatMap(rsb::combineBlocksDS,encoder);
+                .flatMap(ReferenceSetBlocking::combineBlocksDS,encoder);
         /* After groupBy data in ds is like : example of grouping for Bob's db
                  +--------+---------------------+-------------------+
                 |recordID|collect_list(classID)|collect_list(score)|

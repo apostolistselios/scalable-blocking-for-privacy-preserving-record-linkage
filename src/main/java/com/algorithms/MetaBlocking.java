@@ -1,13 +1,12 @@
 package com.algorithms;
 
-import com.utils.Bigrams;
 import com.model.Block;
 import com.model.BlockElement;
+import com.utils.Bigrams;
 import com.utils.Conf;
 import com.utils.Encoders;
 import info.debatty.java.stringsimilarity.SorensenDice;
 import org.apache.spark.api.java.JavaRDD;
-import org.apache.spark.api.java.function.FilterFunction;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
@@ -55,9 +54,9 @@ public abstract class MetaBlocking implements Serializable {
 				.join(BobsBloomsDS,possibleMatchesDS.col("record2").equalTo(BobsBloomsDS.col("recordID")))
 				.drop("recordID").withColumnRenamed("bloom","bloom2") ;
 
-//		Dataset<Row> matches = possibleMatchesWithBloomsDS.filter((FilterFunction<Row>) mb::isMatch).drop("bloom1", "bloom2");
+//		Dataset<Row> matches = possibleMatchesWithBloomsDS.filter((FilterFunction<Row>) MetaBlocking::isMatch).drop("bloom1", "bloom2");
 
-		return possibleMatchesDS;
+		return possibleMatchesWithBloomsDS;
 	}
 
 	public static Iterator<Row> createPossibleMatches(Block block){

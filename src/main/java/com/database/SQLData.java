@@ -42,10 +42,10 @@ public class SQLData {
 
     public Dataset<Row> getReferenceSet() {
         return referenceSet.select(
-                col("nameFirst").alias("col1")
-                , col("birthCity").alias("col2")
-                , col("nameLast").alias("col3")
-        ).where("col1 is not null and col2 is not null and col3 is not null");
+                col("field1").alias("col1")
+                , col("field2").alias("col2")
+                , col("field3").alias("col3")
+        );
     }
 
     private Dataset<Row> query(Dataset<Row> ds){
