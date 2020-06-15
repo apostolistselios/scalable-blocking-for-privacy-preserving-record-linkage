@@ -12,10 +12,8 @@ import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.function.FilterFunction;
 import org.apache.spark.api.java.function.MapFunction;
-import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.*;
 import org.apache.spark.sql.Encoders;
-import org.apache.spark.sql.Row;
-import org.apache.spark.sql.RowFactory;
 import scala.Tuple2;
 import scala.collection.Map;
 
@@ -47,7 +45,7 @@ public abstract class ReferenceSetBlocking implements Serializable {
         // classify for each
         // get the name_pairsRDD, last_nameRDD, etc. and classify it respectively with 1st reference set, 2nd, etc and add it into an ArrayList.
         ArrayList<JavaPairRDD<String, BlockingAttribute>> ClassifiedAlicesRDDs = new ArrayList<>(), ClassifiedBobsRDDs = new ArrayList<>();
-        classify(AliceRDDs, BobRDDs, ClassifiedAlicesRDDs, ClassifiedBobsRDDs, ReferenceSets);
+        classifyRDDs(AliceRDDs, BobRDDs, ClassifiedAlicesRDDs, ClassifiedBobsRDDs, ReferenceSets);
 
         /*
          * data in BobsRDD for classified attribute name is like
@@ -65,8 +63,8 @@ public abstract class ReferenceSetBlocking implements Serializable {
          * (AT24345,[BA(S1.2,null,13), BA(S2.1,null,14), BA(S3.1,null,15)])
          */
 
-        JavaPairRDD<String, BlockElement> BobsblocksRDD = BobsRDDGrouped.flatMapToPair(ReferenceSetBlocking::combineBlocks);
-        JavaPairRDD<String, BlockElement> AliceblocksRDD = AlicesRDDGrouped.flatMapToPair(ReferenceSetBlocking::combineBlocks);
+        JavaPairRDD<String, BlockElement> BobsblocksRDD = BobsRDDGrouped.flatMapToPair(ReferenceSetBlocking::combineRDDBlocks);
+        JavaPairRDD<String, BlockElement> AliceblocksRDD = AlicesRDDGrouped.flatMapToPair(ReferenceSetBlocking::combineRDDBlocks);
 
         /*
          * data in BobsblocksRDD  is like
@@ -77,9 +75,9 @@ public abstract class ReferenceSetBlocking implements Serializable {
         JavaPairRDD<String, Tuple2<Iterable<BlockElement>, Iterable<BlockElement>>> CombinedBlocks = BobsblocksRDD.cogroup(AliceblocksRDD);
 
         // filter block which have only one source
-        JavaPairRDD<String, Tuple2<Iterable<BlockElement>, Iterable<BlockElement>>> filteredBlocks = CombinedBlocks.filter(block -> {
-            return block._2()._1().iterator().hasNext() && block._2()._2().iterator().hasNext();
-        });
+        JavaPairRDD<String, Tuple2<Iterable<BlockElement>, Iterable<BlockElement>>> filteredBlocks = CombinedBlocks.filter(block ->
+                block._2()._1().iterator().hasNext() && block._2()._2().iterator().hasNext()
+        );
 
         /*
          * Data in filteredBlocks is like
@@ -96,12 +94,79 @@ public abstract class ReferenceSetBlocking implements Serializable {
         return blocks;
     }
 
-//    public Tuple2<String,String> mapBlockingAttributes(List<String> record , int ba ){
-//        return new Tuple2<>(record.get(0), record.get(ba));
-//    }
+    public static void blocking (Dataset<Row> AlicesDS, Dataset<Row> BobsDS,
+                                 Dataset<Row> ReferenceSets)
+            throws NoSuchFieldException, IllegalAccessException {
+
+        // distribute blocking attributes in different datasets
+        ArrayList<Dataset<Row>> AliceDSs = ReferenceSetBlocking.mapBlockingAttributes(AlicesDS);
+        ArrayList<Dataset<Row>> BobDSs = ReferenceSetBlocking.mapBlockingAttributes(BobsDS);
+        /*
+         * data in ds is like
+         * example of Bob's db for attribute name
+         * +---+-----+
+         * | id| name|
+         * +---+-----+
+         * | b1|kevin|
+         * | b2| anne|
+         * +---+-----+
+         */
+
+        // classify for each
+        // classify respectively for every blocking attribute with 1st reference set, 2nd, etc and add it into an ArrayList.
+        ArrayList<Dataset<BlockingAttribute>> ClassifiedAlicesDSs = new ArrayList<>();
+        ArrayList<Dataset<BlockingAttribute>> ClassifiedBobsDSs = new ArrayList<>();
+
+        ReferenceSetBlocking.classifyDatasets(AliceDSs, BobDSs, ClassifiedAlicesDSs, ClassifiedBobsDSs, ReferenceSets);
+        /*
+         * data in ds is like
+         * example of classification for name as blocking attribute for Bob's db
+         *  +-------+--------+-----+
+         *  |classID|recordID|score|
+         *  +-------+--------+-----+
+         *  |   S1.1|      b1|    6|
+         *  |   S1.1|      b2|    4|
+         *  +-------+--------+-----+
+         */
+
+        Dataset<BlockingAttribute> AlicesDSGroupped = Transformations.groupDSs(ClassifiedAlicesDSs);
+        Dataset<BlockingAttribute> BobsDSGroupped = Transformations.groupDSs(ClassifiedBobsDSs);
+
+        BobsDS = BobsDSGroupped
+                .groupBy("recordID").agg(functions.collect_list("classID"), functions.collect_list("score"))
+                .flatMap(ReferenceSetBlocking::combineDSBlocks, com.utils.Encoders.blocks());
+
+        AlicesDS = AlicesDSGroupped
+                .groupBy("recordID").agg(functions.collect_list("classID"), functions.collect_list("score"))
+                .flatMap(ReferenceSetBlocking::combineDSBlocks, com.utils.Encoders.blocks());
+        /*
+         * After groupBy data in ds is like : example of grouping for Bob's db
+         *       +--------+---------------------+-------------------+
+         *       |recordID|collect_list(classID)|collect_list(score)|
+         *       +--------+---------------------+-------------------+
+         *       |      b2|   [S3.2, S1.1, S2.1]|          [4, 4, 4]|
+         *       |      b1|   [S3.4, S2.1, S1.1]|          [5, 6, 6]|
+         *       +--------+---------------------+-------------------+
+         *
+         * After flatmap data in ds is like : example for Bob's Blocks
+         *       +---------+----------+
+         *       |  blockID|    record|
+         *       +---------+----------+
+         *       |S1.1-S2.1| [b2 -> 8]|
+         *       |S1.1-S3.2| [b2 -> 8]|
+         *       |S2.1-S3.2| [b2 -> 8]|
+         *       |S1.1-S2.1|[b1 -> 12]|
+         *       |S1.1-S3.4|[b1 -> 11]|
+         *       |S2.1-S3.4|[b1 -> 11]|
+         *       +---------+----------+
+         */
+
+        //TODO: GroupBy blockID , sort on records of every block and return a single Dataset
+    }
 
     public static ArrayList<JavaPairRDD<String, String>> mapBlockingAttributes(JavaRDD<List<String>> rdd) {
         ArrayList<JavaPairRDD<String, String>> temp = new ArrayList<>();
+
         for (int i = 1; i <= Conf.NUM_OF_BLOCKING_ATTRS; i++) {
             // copy i to final variable just to pass it as parameter
             int finalI = i;
@@ -111,26 +176,22 @@ public abstract class ReferenceSetBlocking implements Serializable {
         return temp;
     }
 
-//    public  Dataset<Row> mapBlockingAttributes(Dataset<Row> dbDS , int ba ){
-//	    if (ba==1)
-//            return dbDS.select(Conf.getProperty("ID"), Conf.getProperty("ATTR_2"));
-//	    else if (ba ==2)
-//            return dbDS.select(Conf.getProperty("ID"), Conf.getProperty("ATTR_1"));
-//	    else
-//            return dbDS.select(Conf.getProperty("ID"), Conf.getProperty("ATTR_3"));
-//    }
+    public static ArrayList<Dataset<Row>> mapBlockingAttributes(Dataset<Row> dbDS) throws NoSuchFieldException, IllegalAccessException {
+        ArrayList<Dataset<Row>> temp = new ArrayList<>();
 
-    public static Dataset<Row> mapBlockingAttributes(Dataset<Row> dbDS , int ba ) throws NoSuchFieldException, IllegalAccessException {
-        String attributeName = (String) Conf.class.getField("ATTR_" + ba).get(null);
+        for (int i = 1; i <= Conf.NUM_OF_BLOCKING_ATTRS; i++) {
+            String attributeName = (String) Conf.class.getField("ATTR_" + i).get(null);
+            temp.add(dbDS.select(Conf.ID, attributeName));
+        }
 
-        return dbDS.select(Conf.ID, attributeName);
+        return temp;
     }
 
-    public static void classify(ArrayList<JavaPairRDD<String, String>> rddA,
-                         ArrayList<JavaPairRDD<String, String>> rddB,
-                         ArrayList<JavaPairRDD<String, BlockingAttribute>> classifiedRddA,
-                         ArrayList<JavaPairRDD<String, BlockingAttribute>> classifiedRddB,
-                         Dataset<Row> referenceSets) {
+    public static void classifyRDDs(ArrayList<JavaPairRDD<String, String>> rddA,
+                                    ArrayList<JavaPairRDD<String, String>> rddB,
+                                    ArrayList<JavaPairRDD<String, BlockingAttribute>> classifiedRddA,
+                                    ArrayList<JavaPairRDD<String, BlockingAttribute>> classifiedRddB,
+                                    Dataset<Row> referenceSets) {
 
         int s = 1 ; // count for samples
         for (int i = 1; i <= Conf.NUM_OF_BLOCKING_ATTRS; i++) {
@@ -143,7 +204,6 @@ public abstract class ReferenceSetBlocking implements Serializable {
 
                 List<String> reference_set_values =  DurstenfeldShuffle.shuffle(referenceSetsList).stream().limit(Conf.RS_SIZE).sorted().collect(Collectors.toList());
 
-
                 classifiedRddA.add(classifyBlockingAttribute(
                         rddA.get(i - 1)
                         , reference_set_values
@@ -155,9 +215,26 @@ public abstract class ReferenceSetBlocking implements Serializable {
 
                 s ++ ;
             }
-
-
         }
+    }
+
+    public static void classifyDatasets(ArrayList<Dataset<Row>> DSA, ArrayList<Dataset<Row>> DSB,
+                                ArrayList<Dataset<BlockingAttribute>> classifiedDSA,
+                                ArrayList<Dataset<BlockingAttribute>> classifiedDSB, Dataset<Row> referenceSets) {
+
+        for (int i = 1; i <= Conf.NUM_OF_BLOCKING_ATTRS; i++) {
+
+            classifiedDSA.add(ReferenceSetBlocking.classifyBlockingAttribute(
+                    DSA.get(i - 1)
+                    , referenceSets.select(col("col" + i)).as(Encoders.STRING()).collectAsList()
+                    , String.valueOf(i)));
+
+            classifiedDSB.add(ReferenceSetBlocking.classifyBlockingAttribute(
+                    DSB.get(i - 1)
+                    , referenceSets.select(col("col" + i)).as(Encoders.STRING()).collectAsList()
+                    , String.valueOf(i)));
+        }
+
     }
 
     public static JavaPairRDD<String, BlockingAttribute> classifyBlockingAttribute(JavaPairRDD<String, String> baRDD, List<String> rs,
@@ -186,8 +263,8 @@ public abstract class ReferenceSetBlocking implements Serializable {
         });
     }
 
-    public static Dataset<BlockingAttribute> classify(Dataset<Row> baDS , List<String> rs,
-                                               String rsnum){
+    public static Dataset<BlockingAttribute> classifyBlockingAttribute(Dataset<Row> baDS , List<String> rs,
+                                                                       String rsnum){
         return baDS.map((MapFunction<Row, BlockingAttribute>) row -> {
             String ba = row.getString(1) ;
 
@@ -212,7 +289,7 @@ public abstract class ReferenceSetBlocking implements Serializable {
         }, Encoders.bean(BlockingAttribute.class));
     }
     
-    public static Iterator<Tuple2<String, BlockElement>> combineBlocks(Tuple2<String, Iterable<BlockingAttribute>> baTuple) {
+    public static Iterator<Tuple2<String, BlockElement>> combineRDDBlocks(Tuple2<String, Iterable<BlockingAttribute>> baTuple) {
         ArrayList<Tuple2<String, BlockElement>> blocks = new ArrayList<>();
 
         Iterator<BlockingAttribute> it = baTuple._2().iterator();
@@ -220,28 +297,26 @@ public abstract class ReferenceSetBlocking implements Serializable {
         BlockingAttribute firstBA = currentBA; // keep first to combine it with the last
         while (true) {
             BlockingAttribute nextBA;
-            String blockID;
             if (it.hasNext()) {
                 nextBA = it.next();
-                if (currentBA.getClassID().compareTo(nextBA.getClassID()) > 0)
-                    blockID = nextBA.getClassID() + "-" + currentBA.getClassID();
-                else
-                    blockID = currentBA.getClassID() + "-" + nextBA.getClassID();
-
-                currentBA.setRecordID(baTuple._1());
-                blocks.add(new Tuple2<>(blockID, new BlockElement(currentBA.getRecordID(),currentBA.getScore() + nextBA.getScore())));
+                mergeBlock(baTuple, blocks, currentBA, nextBA);
                 currentBA = nextBA;
             } else {
-                if (currentBA.getClassID().compareTo(firstBA.getClassID()) > 0)
-                    blockID = firstBA.getClassID() + "-" + currentBA.getClassID();
-                else
-                    blockID = currentBA.getClassID() + "-" + firstBA.getClassID();
-                currentBA.setRecordID(baTuple._1());
-                blocks.add(new Tuple2<>(blockID, new BlockElement(currentBA.getRecordID(),currentBA.getScore() + firstBA.getScore())));
+                mergeBlock(baTuple, blocks, currentBA, firstBA);
                 break;
             }
         }
         return blocks.iterator();
+    }
+
+    private static void mergeBlock(Tuple2<String, Iterable<BlockingAttribute>> baTuple, ArrayList<Tuple2<String, BlockElement>> blocks, BlockingAttribute currentBA, BlockingAttribute firstBA) {
+        String blockID;
+        if (currentBA.getClassID().compareTo(firstBA.getClassID()) > 0)
+            blockID = firstBA.getClassID() + "-" + currentBA.getClassID();
+        else
+            blockID = currentBA.getClassID() + "-" + firstBA.getClassID();
+        currentBA.setRecordID(baTuple._1());
+        blocks.add(new Tuple2<>(blockID, new BlockElement(currentBA.getRecordID(),currentBA.getScore() + firstBA.getScore())));
     }
 
     public static Iterator<Tuple2<String, BlockElement>> combineBlocks2(Tuple2<String, Iterable<BlockingAttribute>> baTuple) {
@@ -280,7 +355,7 @@ public abstract class ReferenceSetBlocking implements Serializable {
         return blockObj;
     }
 
-    public static Iterator<Row> combineBlocksDS(Row row) {
+    public static Iterator<Row> combineDSBlocks(Row row) {
 
         List<Row> blocks = new ArrayList<>();
 

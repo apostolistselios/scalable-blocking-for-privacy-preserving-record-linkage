@@ -33,4 +33,14 @@ public class Transformations {
         return temp.groupByKey();
     }
 
+    public static Dataset<BlockingAttribute> groupDSs(ArrayList<Dataset<BlockingAttribute>> ds) {
+        Dataset<BlockingAttribute> temp =  ds.get(0);
+
+        for (int i = 1; i < Conf.NUM_OF_BLOCKING_ATTRS; i++){
+            temp = temp.union(ds.get(i));
+        }
+
+        return temp;
+    }
+
 }
