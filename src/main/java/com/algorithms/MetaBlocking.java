@@ -6,8 +6,7 @@ import com.utils.Bigrams;
 import com.utils.Conf;
 import com.utils.Encoders;
 import info.debatty.java.stringsimilarity.SorensenDice;
-import org.apache.spark.api.java.JavaRDD;
-import org.apache.spark.api.java.function.FilterFunction;
+import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
@@ -29,36 +28,27 @@ public abstract class MetaBlocking implements Serializable {
 	public MetaBlocking () {}
 
 	public static Dataset<Row> metaBocking(SparkSession spark,
-										   JavaRDD<List<String>> alicesRDD,
-										   JavaRDD<List<String>> bobsRDD,
-										   JavaRDD<Block> blocks) {
+	                                       Dataset<Row> alicesDS,
+	                                       Dataset<Row> bobsDS,
+	                                       Dataset<Block> blocks) {
 
 		// Create datasets with records' blooms filters
-		Dataset<Row> AliceBloomsDS = spark.createDataset(
-				alicesRDD.map(MetaBlocking::createBloomFilters).rdd()
-				, Encoders.bloomFilter()
-		);
-		Dataset<Row> BobsBloomsDS = spark.createDataset(
-				bobsRDD.map(MetaBlocking::createBloomFilters).rdd()
-				, Encoders.bloomFilter()
-		);
+		Dataset<Row> AliceBloomsDS = alicesDS.map((MapFunction<Row, Row>) MetaBlocking::createBloomFilters, Encoders.bloomFilter()) ;
+		Dataset<Row> BobBloomsDS = bobsDS.map((MapFunction<Row, Row>) MetaBlocking::createBloomFilters, Encoders.bloomFilter()) ;
 
 		// create possibleMatchesDS that contains only unique rows
-		Dataset<Row> possibleMatchesDS = spark.createDataset(
-				blocks.flatMap(MetaBlocking::createPossibleMatches).rdd()
-				, Encoders.possibleMatches()
-		).distinct();
+		Dataset<Row> possibleMatchesDS = blocks.flatMap(MetaBlocking::createPossibleMatches, Encoders.possibleMatches()).distinct();
 
 		Dataset<Row> possibleMatchesWithBloomsDS = possibleMatchesDS.join(AliceBloomsDS,
-				possibleMatchesDS.col("record1").equalTo(AliceBloomsDS.col("recordID")))
+				possibleMatchesDS.col("record1").equalTo(AliceBloomsDS.col("recordID")), "inner")
 				.drop("recordID").withColumnRenamed("bloom","bloom1")
-				.join(BobsBloomsDS,possibleMatchesDS.col("record2").equalTo(BobsBloomsDS.col("recordID")))
+				.join(BobBloomsDS,possibleMatchesDS.col("record2").equalTo(BobBloomsDS.col("recordID")), "inner")
 				.drop("recordID").withColumnRenamed("bloom","bloom2") ;
 
 		// Transformation takes the majority of execution time (~300secs)
-		Dataset<Row> matches = possibleMatchesWithBloomsDS.filter((FilterFunction<Row>) MetaBlocking::isMatch).drop("bloom1", "bloom2");
+//		Dataset<Row> matches = possibleMatchesWithBloomsDS.filter((FilterFunction<Row>) MetaBlocking::isMatch).drop("bloom1", "bloom2");
 
-		return matches;
+		return possibleMatchesWithBloomsDS;
 	}
 
 	public static Iterator<Row> createPossibleMatches(Block block){
@@ -79,9 +69,9 @@ public abstract class MetaBlocking implements Serializable {
 
 					// put records in the right column
 					if (firstcharOfrecord1 == 'A')
-						recordPairs.add(RowFactory.create(record1,record2));
+						recordPairs.add(RowFactory.create(record1.substring(1),record2.substring(1)));
 					else
-						recordPairs.add(RowFactory.create(record2,record1));
+						recordPairs.add(RowFactory.create(record2.substring(1),record1.substring(1)));
 				}
 				else {
 					windowLimit++;
@@ -92,9 +82,14 @@ public abstract class MetaBlocking implements Serializable {
 	}
 
 
-	public static Row createBloomFilters(List<String> record) {
+	public static Row createBloomFilters(Row record) {
 		// join all attribute
-		List<String> attributesBigrams = Bigrams.ngrams(2, String.join("", record.subList(1, Conf.NUM_OF_BLOCKING_ATTRS + 1)));
+		String recordString = "";
+		for(int i= 0 ; i < Conf.NUM_OF_BLOCKING_ATTRS; i ++ )
+			recordString = String.join(recordString, record.getString(i+1)) ;
+
+		List<String> attributesBigrams = Bigrams.ngrams(2 , recordString) ;
+
 		// create bloom filter
 		BloomFilter bf = BloomFilter.create(attributesBigrams.size(), Conf.BLOOM_FILTER_SIZE);
 

@@ -18,11 +18,15 @@ public class SQLData {
         // Get SparkSession from Main
         this.spark = spark;
 
+//        this.alice = spark.read().format("csv")
+//                .load(Conf.HDFS_DIRECTORY + Conf.DB_A_FILE_NAME).sample(Conf.SAMPLE_FRACTION,4);
         this.alice = spark.read().format("csv")
-                .load(Conf.HDFS_DIRECTORY + Conf.DB_A_FILE_NAME).sample(Conf.SAMPLE_FRACTION,4);
+                        .load(Conf.HDFS_DIRECTORY + Conf.DB_A_FILE_NAME).limit(Conf.DB_SIZE);
 
+//        this.bob = spark.read().format("csv")
+//                .load(Conf.HDFS_DIRECTORY + Conf.DB_B_FILE_NAME).sample(Conf.SAMPLE_FRACTION, 4);
         this.bob = spark.read().format("csv")
-                .load(Conf.HDFS_DIRECTORY + Conf.DB_B_FILE_NAME).sample(Conf.SAMPLE_FRACTION, 4);
+                .load(Conf.HDFS_DIRECTORY + Conf.DB_B_FILE_NAME).limit(Conf.DB_SIZE);
 
         this.referenceSet = spark.read().format("csv").option("header", "true")
                 .load(Conf.HDFS_DIRECTORY + Conf.RS_FILE_NAME);
