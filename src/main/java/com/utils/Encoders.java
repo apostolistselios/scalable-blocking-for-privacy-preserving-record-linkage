@@ -26,4 +26,12 @@ public abstract class Encoders {
         return RowEncoder.apply(possiblesMatchesSchema);
     }
 
+    public static ExpressionEncoder<Row> preBlockElement() {
+        StructType schema = new StructType();
+        schema = schema.add("blockID", DataTypes.StringType, false);
+        schema = schema.add("recordID", DataTypes.StringType, false);
+        schema = schema.add("score", DataTypes.IntegerType, false);
+        return RowEncoder.apply(schema);
+    }
+
 }

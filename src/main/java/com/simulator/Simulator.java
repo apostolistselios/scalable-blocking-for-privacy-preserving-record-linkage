@@ -1,13 +1,11 @@
 package com.simulator;
 
 
-import com.algorithms.MetaBlocking;
 import com.algorithms.ReferenceSetBlocking;
 import com.database.SQLData;
 import com.model.Block;
 import com.utils.Conf;
 import com.utils.Timer;
-import com.utils.Transformations;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.spark.SparkConf;
@@ -17,7 +15,6 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 
-import java.util.List;
 import java.util.Scanner;
 
 public class Simulator {
@@ -34,8 +31,11 @@ public class Simulator {
 
         SQLData db = new SQLData(spark);
 
-        JavaRDD<List<String>> AlicesRDD = Transformations.datasetToRDD(db.getAlice(), "A");
-        JavaRDD<List<String>> BobsRDD = Transformations.datasetToRDD(db.getBob(), "B");
+//        JavaRDD<List<String>> AlicesRDD = Transformations.datasetToRDD(db.getAlice(), "A");
+//        JavaRDD<List<String>> BobsRDD = Transformations.datasetToRDD(db.getBob(), "B");
+
+	    Dataset<Row> AliceDS = db.getAlice();
+	    Dataset<Row> BobDS = db.getBob();
 
         Dataset<Row> ReferenceSets = db.getReferenceSet();
         ReferenceSets.cache();
@@ -47,11 +47,12 @@ public class Simulator {
          * [AA181290, ACO0TA, BARBRAA, BURLNGTON]
          */
 
-        JavaRDD<Block> blocks = ReferenceSetBlocking.blocking(AlicesRDD, BobsRDD, ReferenceSets);
+        JavaRDD<Block> blocks = ReferenceSetBlocking.blocking(AliceDS, BobDS, ReferenceSets, spark);
 
-        Dataset<Row> matches = MetaBlocking.metaBocking(spark, AlicesRDD, BobsRDD, blocks);
-        matches.cache();
-        printResult(matches);
+        blocks.collect().forEach(System.out::println);
+//        Dataset<Row> matches = MetaBlocking.metaBocking(spark, AlicesRDD, BobsRDD, blocks);
+//        matches.cache();
+//        printResult(matches);
 
         Scanner myscanner = new Scanner(System.in);
         myscanner.nextLine();
