@@ -11,7 +11,6 @@ import org.apache.spark.api.java.function.FilterFunction;
 import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.sql.*;
 
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -21,9 +20,7 @@ import java.util.stream.Collectors;
 import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.collect_list;
 
-public abstract class ReferenceSetBlocking implements Serializable {
-
-	private static final long serialVersionUID = -998419074815274020L;
+public abstract class ReferenceSetBlocking {
 
 	public static Dataset<Block> blocking(Dataset<Row> AliceDS, Dataset<Row> BobDS, Dataset<Row> ReferenceSets, SparkSession spark){
 
@@ -33,10 +30,11 @@ public abstract class ReferenceSetBlocking implements Serializable {
 
 		int s = 1 ; // count for samples
 		for (int i = 1; i <= Conf.NUM_OF_BLOCKING_ATTRS; i++) {
-			List<String> referenceSetsList = ReferenceSets.select(col("col" + i))
-					.na().drop().distinct().filter((FilterFunction<Row>) row -> row.getString(0).length() > 0 )
+			List<String> referenceSetsList = ReferenceSets.select(col("col" + 1))
+					.na().drop().distinct().filter((FilterFunction<Row>) row -> row.getString(0).length() > 1 )
 					.map((MapFunction<Row, String>)  row -> row.getString(0).toUpperCase(), Encoders.STRING())
 					.collectAsList();
+
 
 			for(int j = 0; j < Conf.NUM_OF_SAMPLES; j++) {
 
@@ -158,9 +156,14 @@ public abstract class ReferenceSetBlocking implements Serializable {
 		return baDS.map((MapFunction<Row,BlockingAttribute>) ba -> {
 			String classID;
 			int pos;
+			int num_of_search_chars;
 
+			if (ba.getString(1).length() > 1)
+				num_of_search_chars = Conf.NUM_OF_BINARY_SEARCH_CHARS + 1  ;
+			else
+				num_of_search_chars = Conf.NUM_OF_BINARY_SEARCH_CHARS ;
 
-			pos = BinarySearch.binarySearch(rs,0,rs.size()-1, ba.getString(1))  ;
+			pos = BinarySearch.binarySearch(rs,0,rs.size()-1, ba.getString(1), num_of_search_chars)  ;
 
 			int d1 = 1000000;
 			if (pos -1 > 0 ) {

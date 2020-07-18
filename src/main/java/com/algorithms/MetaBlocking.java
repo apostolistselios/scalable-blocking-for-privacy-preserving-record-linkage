@@ -15,15 +15,12 @@ import org.apache.spark.util.sketch.BloomFilter;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
-public abstract class MetaBlocking implements Serializable {
-	
-	private static final long serialVersionUID = 5317646661733959435L;
+public abstract class MetaBlocking  {
 
 	public MetaBlocking () {}
 
@@ -67,7 +64,7 @@ public abstract class MetaBlocking implements Serializable {
 				// check if records are from  different database
 				if (firstcharOfrecord1 != firstcharOfrecord2) {
 
-					// put records in the right column
+					// put records in the right column and remove prefix
 					if (firstcharOfrecord1 == 'A')
 						recordPairs.add(RowFactory.create(record1.substring(1),record2.substring(1)));
 					else

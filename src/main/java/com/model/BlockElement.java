@@ -1,8 +1,6 @@
 package com.model;
 
-import java.io.Serializable;
-
-public class BlockElement implements Serializable, Comparable<BlockElement>{
+public class BlockElement implements Comparable<BlockElement>{
 
     private String recordID;
     private int score;
