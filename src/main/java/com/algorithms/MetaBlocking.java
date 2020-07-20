@@ -1,22 +1,20 @@
 package com.algorithms;
 
+
 import com.model.Block;
 import com.model.BlockElement;
-import com.utils.Bigrams;
+import com.utils.BloomAlgorithms;
 import com.utils.Conf;
 import com.utils.Encoders;
-import info.debatty.java.stringsimilarity.SorensenDice;
+import org.apache.spark.api.java.function.FilterFunction;
 import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.util.sketch.BloomFilter;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Iterator;
 import java.util.List;
 
@@ -42,10 +40,9 @@ public abstract class MetaBlocking  {
 				.join(BobBloomsDS,possibleMatchesDS.col("record2").equalTo(BobBloomsDS.col("recordID")), "inner")
 				.drop("recordID").withColumnRenamed("bloom","bloom2") ;
 
-		// Transformation takes the majority of execution time (~300secs)
-//		Dataset<Row> matches = possibleMatchesWithBloomsDS.filter((FilterFunction<Row>) MetaBlocking::isMatch).drop("bloom1", "bloom2");
+		Dataset<Row> matches = possibleMatchesWithBloomsDS.filter((FilterFunction<Row>) MetaBlocking::isMatch).drop("bloom1", "bloom2");
 
-		return possibleMatchesWithBloomsDS;
+		return matches;
 	}
 
 	public static Iterator<Row> createPossibleMatches(Block block){
@@ -80,40 +77,46 @@ public abstract class MetaBlocking  {
 
 
 	public static Row createBloomFilters(Row record) {
-		// join all attribute
-		String recordString = "";
-		for(int i= 0 ; i < Conf.NUM_OF_BLOCKING_ATTRS; i ++ )
-			recordString = String.join(recordString, record.getString(i+1)) ;
+//		// join all attribute
+//		String recordString = " ";
 
-		List<String> attributesBigrams = Bigrams.ngrams(2 , recordString) ;
+		byte[][] bloomFilters = new byte[Conf.NUM_OF_BLOCKING_ATTRS][] ;
+		for(int i= 0 ; i < Conf.NUM_OF_BLOCKING_ATTRS ; i ++ )
+			bloomFilters[i] =  BloomAlgorithms.string2Bloom(record.getString(i+1)).getFilter().toByteArray() ;
 
-		// create bloom filter
-		BloomFilter bf = BloomFilter.create(attributesBigrams.size(), Conf.BLOOM_FILTER_SIZE);
 
-		// put bigrams in bloom filters
-		for (String bigram : attributesBigrams)
-			bf.putString(bigram);
+		return RowFactory.create(record.get(0), bloomFilters );
+//		return RowFactory.create(record.get(0), bf.getFilter().toByteArray() );
+	}
 
-		// reformat bloom filter as string
-		ByteArrayOutputStream bloomByte = new ByteArrayOutputStream();
-		try {
-			bf.writeTo(bloomByte);
-		} catch (IOException e) {
-			e.printStackTrace();
+
+	public static boolean isMatch(Row row) {
+
+		List<byte[]> bf1 = row.getList(2) ;
+		List<byte[]> bf2 = row.getList(3) ;
+
+		int matchedFields=0;
+		for(int i =0 ; i < Conf.NUM_OF_BLOCKING_ATTRS; i++){
+			if (matchField(BitSet.valueOf(bf1.get(i)), BitSet.valueOf(bf2.get(i)), Conf.MATCHING_THRESHOLD))
+				matchedFields++;
 		}
 
-		return RowFactory.create(record.get(0), bloomByte.toByteArray() );
+		return matchedFields >= Conf.MATCHES_TO_ACCEPT;
+
+	}
+
+	private static boolean matchField(BitSet filterA, BitSet filterB, float t){
+		float diceCo = 0f;
+		int bf1Card = filterA.cardinality();
+		int bf2Card = filterB.cardinality();
+
+		filterA.and(filterB);
+		int commons = filterA.cardinality();
+
+		diceCo =  2 *(float) commons / (bf1Card + bf2Card) ;
+
+		return diceCo >= t;
 	}
 
 
-	public static boolean isMatch(Row row) throws  Exception{
-		byte[] bf1 = row.getAs("bloom1");
-		byte[] bf2 = row.getAs("bloom2");
-
-		SorensenDice sd = new SorensenDice();
-		double dCof = sd.similarity(Arrays.toString(bf1), Arrays.toString(bf2));
-
-		// (double) (2 * BitSet.valueOf(Bytes.concat(bf1, bf2)).cardinality()) / (BitSet.valueOf(bf1).cardinality() + BitSet.valueOf(bf2).cardinality());
-		return dCof > Conf.MATCHING_THRESHOLD;
-	}
 }

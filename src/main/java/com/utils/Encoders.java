@@ -12,7 +12,7 @@ public abstract class Encoders {
         // define the schema for blooms dataset
         StructType bloomsFilterSchema = new StructType();
         bloomsFilterSchema = bloomsFilterSchema.add("recordID", DataTypes.StringType, false);
-        bloomsFilterSchema = bloomsFilterSchema.add("bloom", DataTypes.BinaryType , false);
+        bloomsFilterSchema = bloomsFilterSchema.add("bloom", DataTypes.createArrayType(DataTypes.BinaryType) , false);
         return RowEncoder.apply(bloomsFilterSchema);
     }
 

@@ -30,7 +30,7 @@ public abstract class ReferenceSetBlocking {
 
 		int s = 1 ; // count for samples
 		for (int i = 1; i <= Conf.NUM_OF_BLOCKING_ATTRS; i++) {
-			List<String> referenceSetsList = ReferenceSets.select(col("col" + 1))
+			List<String> referenceSetsList = ReferenceSets.select(col("col" + i))
 					.na().drop().distinct().filter((FilterFunction<Row>) row -> row.getString(0).length() > 1 )
 					.map((MapFunction<Row, String>)  row -> row.getString(0).toUpperCase(), Encoders.STRING())
 					.collectAsList();
