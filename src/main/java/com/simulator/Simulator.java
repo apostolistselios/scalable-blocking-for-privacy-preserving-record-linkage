@@ -64,7 +64,7 @@ public class Simulator {
 
 		System.out.println(tp);
 		System.out.println(matchesSize);
-		System.out.println("Possible Recall (it may go above 1) : " + (double) tp / commons );
-		System.out.println("Possible Precision (it may go above 1) : " + (double) tp / matchesSize );
+		System.out.println("Recall : " + (double) tp / commons );
+		System.out.println("Precision : " + (double) tp / matchesSize );
 	}
 }
