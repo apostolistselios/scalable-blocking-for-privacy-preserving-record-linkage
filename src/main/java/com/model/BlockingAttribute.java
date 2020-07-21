@@ -1,9 +1,7 @@
-package com.utils;
+package com.model;
 
-import java.io.Serializable;
+public class BlockingAttribute implements Comparable<BlockingAttribute>{
 
-public class BlockingAttribute implements Serializable, Comparable<BlockingAttribute>{
-	private static final long serialVersionUID = 8825524692657181465L;
 	private String classID;
 	private String recordID;
 	private int score;

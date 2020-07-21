@@ -1,35 +1,58 @@
 package com.algorithms;
 
-import com.utils.Bigrams;
-import com.utils.Block;
-import com.utils.BlockElement;
-import info.debatty.java.stringsimilarity.SorensenDice;
+
+import com.model.Block;
+import com.model.BlockElement;
+import com.utils.BloomAlgorithms;
+import com.utils.Conf;
+import com.utils.Encoders;
+import org.apache.spark.api.java.function.FilterFunction;
+import org.apache.spark.api.java.function.MapFunction;
+import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
-import org.apache.spark.util.sketch.BloomFilter;
+import org.apache.spark.sql.SparkSession;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Iterator;
 import java.util.List;
 
-public class MetaBlocking implements Serializable {
-	
-	private static final long serialVersionUID = 5317646661733959435L;
+public abstract class MetaBlocking  {
 
 	public MetaBlocking () {}
-	
 
-	public Iterator<Row> createPossibleMatches(Block block, int window){
+	public static Dataset<Row> metaBocking(SparkSession spark,
+	                                       Dataset<Row> alicesDS,
+	                                       Dataset<Row> bobsDS,
+	                                       Dataset<Block> blocks) {
+
+		// Create datasets with records' blooms filters
+		Dataset<Row> AliceBloomsDS = alicesDS.map((MapFunction<Row, Row>) MetaBlocking::createBloomFilters, Encoders.bloomFilter()) ;
+		Dataset<Row> BobBloomsDS = bobsDS.map((MapFunction<Row, Row>) MetaBlocking::createBloomFilters, Encoders.bloomFilter()) ;
+
+		// create possibleMatchesDS that contains only unique rows
+		Dataset<Row> possibleMatchesDS = blocks.flatMap(MetaBlocking::createPossibleMatches, Encoders.possibleMatches()).distinct();
+
+		Dataset<Row> possibleMatchesWithBloomsDS = possibleMatchesDS.join(AliceBloomsDS,
+				possibleMatchesDS.col("record1").equalTo(AliceBloomsDS.col("recordID")), "inner")
+				.drop("recordID").withColumnRenamed("bloom","bloom1")
+				.join(BobBloomsDS,possibleMatchesDS.col("record2").equalTo(BobBloomsDS.col("recordID")), "inner")
+				.drop("recordID").withColumnRenamed("bloom","bloom2") ;
+
+		Dataset<Row> matches = possibleMatchesWithBloomsDS.filter((FilterFunction<Row>) MetaBlocking::isMatch).drop("bloom1", "bloom2");
+
+		return matches;
+	}
+
+	public static Iterator<Row> createPossibleMatches(Block block){
 		List<Row> recordPairs = new ArrayList<>();
 		List<BlockElement> baList = block.getBAList();
 
 		for (int i = 1; i < baList.size(); i++) {
 			String record1 = baList.get(i).getRecordID();
-			for (int j = i - 1; j >= i - window + 1 && j >= 0; j--) {
+			int windowLimit = Conf.WINDOW_SIZE;
+			for (int j = i - 1; j >= i - windowLimit + 1 && j >= 0; j--) {
 				String record2 = baList.get(j).getRecordID();
 
 				char firstcharOfrecord1 = record1.charAt(0);
@@ -38,11 +61,14 @@ public class MetaBlocking implements Serializable {
 				// check if records are from  different database
 				if (firstcharOfrecord1 != firstcharOfrecord2) {
 
-					// put records in the right column
+					// put records in the right column and remove prefix
 					if (firstcharOfrecord1 == 'A')
-						recordPairs.add(RowFactory.create(record1,record2));
+						recordPairs.add(RowFactory.create(record1.substring(1),record2.substring(1)));
 					else
-						recordPairs.add(RowFactory.create(record2,record1));
+						recordPairs.add(RowFactory.create(record2.substring(1),record1.substring(1)));
+				}
+				else {
+					windowLimit++;
 				}
 			}
 		}
@@ -50,44 +76,47 @@ public class MetaBlocking implements Serializable {
 	}
 
 
-	public Row createBloomFilters(List<String> record) {
-		// join all attribute
-		byte[][] BloomFilters = new byte[3][];
-		for(int i=1;i<=3;i++){
-			String attribute = record.get(i);
+	public static Row createBloomFilters(Row record) {
+//		// join all attribute
+//		String recordString = " ";
 
-			List<String> attributesBigrams = Bigrams.ngrams(2, attribute);
-			// create bloom filter
-			BloomFilter bf = BloomFilter.create(attributesBigrams.size(), 900);
-			// put bigrams in bloom filters
-			for (String bigram : attributesBigrams)
-				bf.putString(bigram);
-			// reformat bloom filter as string
-			ByteArrayOutputStream bloomByte = new ByteArrayOutputStream();
-			try {
-				bf.writeTo(bloomByte);
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-			BloomFilters[i-1] = bloomByte.toByteArray();
-		}
+		byte[][] bloomFilters = new byte[Conf.NUM_OF_BLOCKING_ATTRS][] ;
+		for(int i= 0 ; i < Conf.NUM_OF_BLOCKING_ATTRS ; i ++ )
+			bloomFilters[i] =  BloomAlgorithms.string2Bloom(record.getString(i+1)).getFilter().toByteArray() ;
 
-		return RowFactory.create(record.get(0), BloomFilters);
+
+		return RowFactory.create(record.get(0), bloomFilters );
+//		return RowFactory.create(record.get(0), bf.getFilter().toByteArray() );
 	}
 
 
-	public boolean isMatch(Row row,double THRESHOLD) throws  Exception{
-		List<byte[]> BloomFilters1 = row.getList(2);
-		List<byte[]> BloomFilters2 = row.getList(3);
+	public static boolean isMatch(Row row) {
 
-		for (int i = 0; i< BloomFilters1.size(); i++) {
-			SorensenDice sd = new SorensenDice();
+		List<byte[]> bf1 = row.getList(2) ;
+		List<byte[]> bf2 = row.getList(3) ;
 
-			double dCof = sd.similarity(Arrays.toString(BloomFilters1.get(i)), Arrays.toString(BloomFilters2.get(i)));
-			if (dCof < THRESHOLD) {
-				return false;
-			}
+		int matchedFields=0;
+		for(int i =0 ; i < Conf.NUM_OF_BLOCKING_ATTRS; i++){
+			if (matchField(BitSet.valueOf(bf1.get(i)), BitSet.valueOf(bf2.get(i)), Conf.MATCHING_THRESHOLD))
+				matchedFields++;
 		}
-		return true;
+
+		return matchedFields >= Conf.MATCHES_TO_ACCEPT;
+
 	}
+
+	private static boolean matchField(BitSet filterA, BitSet filterB, float t){
+		float diceCo = 0f;
+		int bf1Card = filterA.cardinality();
+		int bf2Card = filterB.cardinality();
+
+		filterA.and(filterB);
+		int commons = filterA.cardinality();
+
+		diceCo =  2 *(float) commons / (bf1Card + bf2Card) ;
+
+		return diceCo >= t;
+	}
+
+
 }

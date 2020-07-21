@@ -1,10 +1,9 @@
-package com.utils;
+package com.model;
 
-import java.io.Serializable;
 import java.util.ArrayList;
 
-public class Block implements Serializable {
-	private static final long serialVersionUID = -3916723290247865993L;
+public class Block  {
+
 	private String id;
 	private ArrayList<BlockElement> baList;
 	private int rank;
