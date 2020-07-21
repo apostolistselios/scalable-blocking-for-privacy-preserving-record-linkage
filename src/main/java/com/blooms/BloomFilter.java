@@ -1,11 +1,11 @@
 package com.blooms;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.BitSet;
 
 public class BloomFilter extends BitFilter<BitSet> implements Cloneable{
 	protected String algorithm;
 	protected int filterSize;
-	protected static MessageDigest m=null;
 	protected int numberOfHashFunctions;
 	protected int digestLength = 0;
 	protected int bytesPerHash = 0;
@@ -27,14 +27,6 @@ public class BloomFilter extends BitFilter<BitSet> implements Cloneable{
 
     public BloomFilter(String algorithm, int numberOfHashFunctions, int filterSize){
     	this.algorithm = algorithm;
-    	if (m==null){
-    	try{
-    		m = MessageDigest.getInstance(algorithm);
-    	}
-    	catch (Exception e){
-    		System.out.println(e);
-    	}
-    	}
     	this.numberOfHashFunctions = numberOfHashFunctions;
     	this.filterSize = filterSize;
     	this.filter = new BitSet(filterSize);
@@ -55,36 +47,47 @@ public class BloomFilter extends BitFilter<BitSet> implements Cloneable{
     	byte[] digest;
     	int bitToSet;
     	long lbitToSet;
-    	m.update(message.getBytes(),0,message.length());
-    	digest = m.digest();
-//    	System.out.println(algorithm+": "+new BigInteger(1,digest).toString(16));
-    	m.reset();
-    	for(int i=0;i<digestLength;i+=bytesPerHash){
-    		lbitToSet = toLong(digest,i,bytesPerHash);
-    		//System.out.println("number:"+lbitToSet+" To filter:"+(lbitToSet%this.filterSize));
-    		lbitToSet=lbitToSet%this.filterSize;
-    		bitToSet = (int)lbitToSet;
-    		filter.set(bitToSet);
-    		//System.out.println(filter.toString());
-    	}
+
+	    try {
+		    MessageDigest m = MessageDigest.getInstance(algorithm);
+		    m.update(message.getBytes(),0,message.length());
+		    digest = m.digest();
+		    for(int i=0;i<digestLength;i+=bytesPerHash){
+			    lbitToSet = toLong(digest,i,bytesPerHash);
+			    //System.out.println("number:"+lbitToSet+" To filter:"+(lbitToSet%this.filterSize));
+			    lbitToSet=lbitToSet%this.filterSize;
+			    bitToSet = (int)lbitToSet;
+			    filter.set(bitToSet);
+			    //System.out.println(filter.toString());
+		    }
+	    } catch (NoSuchAlgorithmException e) {
+		    e.printStackTrace();
+	    }
+
+
     }
 
     public boolean membershipTest(String message){
     	byte[] digest;
     	int bitToSet;
     	long lbitToSet;
-    	m.update(message.getBytes(),0,message.length());
-    	digest = m.digest();
-    	m.reset();
-    	for(int i=0;i<digestLength;i+=bytesPerHash){
-    		lbitToSet = toLong(digest,i,bytesPerHash);
-    		//System.out.println("number:"+lbitToSet+" To filter:"+(lbitToSet%this.filterSize));
-    		lbitToSet=lbitToSet%this.filterSize;
-    		bitToSet = (int)lbitToSet;
-    		bitToSet%=this.filterSize;
-    		if(!filter.get(bitToSet))
-    			return(false);
-    	}
+	    try {
+		    MessageDigest m = MessageDigest.getInstance(algorithm);
+		    m.update(message.getBytes(),0,message.length());
+		    digest = m.digest();
+		    for(int i=0;i<digestLength;i+=bytesPerHash){
+			    lbitToSet = toLong(digest,i,bytesPerHash);
+			    //System.out.println("number:"+lbitToSet+" To filter:"+(lbitToSet%this.filterSize));
+			    lbitToSet=lbitToSet%this.filterSize;
+			    bitToSet = (int)lbitToSet;
+			    bitToSet%=this.filterSize;
+			    if(!filter.get(bitToSet))
+				    return(false);
+		    }
+	    } catch (NoSuchAlgorithmException e) {
+		    e.printStackTrace();
+	    }
+
     	return(true);
     }
 

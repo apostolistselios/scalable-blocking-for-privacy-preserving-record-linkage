@@ -28,7 +28,7 @@ public abstract class Conf {
     public static int RS_SIZE = (int) (DB_SIZE * 0.001);
     public static int NUM_OF_BINARY_SEARCH_CHARS = 1;
     public static int WINDOW_SIZE = 20;
-    public static float MATCHING_THRESHOLD = 0.45f;
+    public static float MATCHING_THRESHOLD = 0.5f;
     public static double COMMON_RECORDS = 0.25;
     public static int BLOOM_FILTER_SIZE = 900;
     public static int NUM_OF_SAMPLES = 10;
