@@ -23,10 +23,13 @@ public class Simulator {
 		Logger.getLogger("org.apache").setLevel(Level.WARN);
 		SparkConf conf = new SparkConf().setAppName("JavaRDD")
 				.set("spark.executor.memory", "5g")
-				.set("spark.debug.maxToStringFields", String.valueOf(100));
+				.set("spark.debug.maxToStringFields", String.valueOf(100))
+				.set("spark.sql.execution.arrow.enabled", "true");
 
 		SparkSession spark = SparkSession.builder().config(conf).getOrCreate();
 		spark.sparkContext().setLogLevel("ERROR");
+
+		Conf.init(args);
 
 		SQLData db = new SQLData(spark);
 
